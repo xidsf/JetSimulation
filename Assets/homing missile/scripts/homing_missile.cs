@@ -32,13 +32,18 @@ public class homing_missile : MonoBehaviour
     }
     public void call_destroy_effects()
     {
-        Instantiate(destroy_effect, transform.position, transform.rotation);
+        if (destroy_effect == null)
+        {
+            return;
+        }
+
+        GameObject effect = Instantiate(destroy_effect, transform.position, transform.rotation);
+        Destroy(effect, 4f);
     }
     public void setmissile()
     {
         timealive = 0;
         transform.rotation = shooter.transform.rotation;
-        transform.Rotate(0, 90, 0);
         transform.position = shooter.transform.position;
     }
     public void DestroyMe()
