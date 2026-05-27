@@ -26,6 +26,7 @@ public class homing_missile : MonoBehaviour
     public ParticleSystem smoke;
     public GameObject smoke_position;
     public GameObject destroy_effect;
+    public bool lostTarget;
     private void Start()
     {
         projectilerb = this.GetComponent<Rigidbody>();
@@ -66,6 +67,7 @@ public class homing_missile : MonoBehaviour
     {
         launch_sound.Play();
         isactive = true;
+        lostTarget = false;
         setmissile();
 
     }
@@ -95,17 +97,16 @@ public class homing_missile : MonoBehaviour
     {
         if (isactive)
         {
-            if (!target.activeInHierarchy)
-            {
-                DestroyMe();
-            }
+            if (!HasTarget())
+                lostTarget = true;
+
             if (timealive == timebeforeactivition)
             {
                 fully_active = true;
                 thrust_sound.Play();
             }
             timealive++;
-            if (timealive < timebeforebursting)
+            if (!lostTarget && timealive < timebeforebursting)
             {
                 projectilerb.velocity = transform.up * -1 * downspeed;
             }
@@ -119,12 +120,21 @@ public class homing_missile : MonoBehaviour
             {
                 DestroyMe();
             }
-            if (timealive >= timebeforebursting && timealive < timebeforedestruction)
+            if ((lostTarget || timealive >= timebeforebursting) && timealive < timebeforedestruction)
             {
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetpointer.transform.rotation, turnSpeed);
+                if (!lostTarget && targetpointer != null)
+                {
+                    transform.rotation = Quaternion.Slerp(transform.rotation, targetpointer.transform.rotation, turnSpeed);
+                }
+
                 projectilerb.velocity = transform.forward * speed;
             }
         }
+    }
+
+    bool HasTarget()
+    {
+        return target != null && target.activeInHierarchy;
     }
 }
 }
