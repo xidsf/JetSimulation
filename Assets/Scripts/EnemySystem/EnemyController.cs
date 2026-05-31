@@ -25,9 +25,26 @@ namespace JetSimulation.EnemySystem
 
         public void Initialize(Vector3 moveDirection, float speed, float maxTravelDistance)
         {
+            Initialize(moveDirection, speed, maxTravelDistance, false, 0f);
+        }
+
+        public void Initialize(Vector3 moveDirection, float speed, float maxTravelDistance, bool lockHeight, float flightHeight)
+        {
+            Initialize(moveDirection, speed, maxTravelDistance, lockHeight, flightHeight, false, 0f);
+        }
+
+        public void Initialize(
+            Vector3 moveDirection,
+            float speed,
+            float maxTravelDistance,
+            bool lockHeight,
+            float flightHeight,
+            bool descendBeforeForward,
+            float descentSpeed)
+        {
             CacheComponents();
             health.ResetHealth();
-            mover.Initialize(moveDirection, speed, maxTravelDistance);
+            mover.Initialize(moveDirection, speed, maxTravelDistance, lockHeight, flightHeight, descendBeforeForward, descentSpeed);
         }
 
         private void CacheComponents()

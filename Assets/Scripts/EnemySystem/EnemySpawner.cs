@@ -29,7 +29,10 @@ namespace JetSimulation.EnemySystem
         [SerializeField] private ScreenSpawnSide spawnSide = ScreenSpawnSide.Random;
         [SerializeField] private float spawnDistanceFromCamera = 85f;
         [SerializeField] private float viewportOverscan = 0.08f;
-        [SerializeField] private float verticalJitter = 4f;
+        [SerializeField] private float spawnHeight = 50f;
+        [SerializeField] private bool useFixedFlightHeight = true;
+        [SerializeField] private float flightHeight = 10f;
+        [SerializeField] private float heightJitter = 0f;
         [SerializeField] private float spawnInterval = 2.5f;
         [SerializeField] private int enemiesPerWave = 1;
         [SerializeField] private float waveSpread = 7f;
@@ -37,6 +40,9 @@ namespace JetSimulation.EnemySystem
         [Header("Movement")]
         [SerializeField] private float enemySpeed = 35f;
         [SerializeField] private float maxTravelDistance = 220f;
+        [SerializeField] private bool moveHorizontallyOnly = true;
+        [SerializeField] private bool descendBeforeForward = true;
+        [SerializeField] private float descentSpeed = 25f;
 
         private float nextSpawnTime;
         private bool hasSpawned;
@@ -115,12 +121,19 @@ namespace JetSimulation.EnemySystem
             var side = ResolveSpawnSide();
             var spawnPosition = GetViewportSpawnPosition(side);
             spawnPosition += GetWaveOffset(index, count);
-            spawnPosition += Vector3.up * Random.Range(-verticalJitter, verticalJitter);
+            spawnPosition = ApplySpawnHeight(spawnPosition);
 
-            var moveDirection = GetPlayerMoveDirection() * -1f;
+            var moveDirection = GetEnemyMoveDirection();
             var rotation = Quaternion.LookRotation(moveDirection, Vector3.up);
             var enemy = Instantiate(prefab, spawnPosition, rotation, enemyParent);
-            enemy.Initialize(moveDirection, enemySpeed, maxTravelDistance);
+            enemy.Initialize(
+                moveDirection,
+                enemySpeed,
+                maxTravelDistance,
+                useFixedFlightHeight,
+                flightHeight,
+                descendBeforeForward,
+                descentSpeed);
         }
 
         private ScreenSpawnSide ResolveSpawnSide()
@@ -168,6 +181,18 @@ namespace JetSimulation.EnemySystem
             return playerCamera.transform.right * centeredIndex * waveSpread;
         }
 
+        private Vector3 ApplySpawnHeight(Vector3 position)
+        {
+            if (!useFixedFlightHeight)
+            {
+                position.y += Random.Range(-heightJitter, heightJitter);
+                return position;
+            }
+
+            position.y = spawnHeight + Random.Range(-heightJitter, heightJitter);
+            return position;
+        }
+
         private void TrackPlayerDirection()
         {
             if (player == null)
@@ -196,6 +221,29 @@ namespace JetSimulation.EnemySystem
             }
 
             return fallbackDirection.normalized;
+        }
+
+        private Vector3 GetEnemyMoveDirection()
+        {
+            var direction = GetPlayerMoveDirection() * -1f;
+
+            if (moveHorizontallyOnly)
+            {
+                direction.y = 0f;
+            }
+
+            if (direction.sqrMagnitude < 0.001f)
+            {
+                direction = playerCamera != null ? playerCamera.transform.forward * -1f : Vector3.back;
+                direction.y = 0f;
+            }
+
+            if (direction.sqrMagnitude < 0.001f)
+            {
+                direction = Vector3.back;
+            }
+
+            return direction.normalized;
         }
 
         private void ResolveReferences()

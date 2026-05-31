@@ -49,9 +49,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4765ef2f4cd9b6b41a7b51c5ad60cb4d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 100
-  destroyEffectPrefab: {fileID: 0}
-  destroyRootObject: 1
+  maxHealth: 10
+  destroyEffectPrefab: {fileID: 8295591563862043295, guid: 98c5ce036f68d8941922e7541fb70887, type: 3}
+  destroyTarget: {fileID: 0}
+  crashOnDeath: 1
+  crashFallSpeed: 25
+  crashDestroyDistance: 45
+  crashRollSpeed: 120
+  disableCollidersOnDeath: 1
+  destroyEffectLifetime: 5
   damaged:
     m_PersistentCalls:
       m_Calls: []
@@ -73,7 +79,7 @@ MonoBehaviour:
   speed: 35
   maxTravelDistance: 220
   rotateToMoveDirection: 1
-  modelRotationOffset: {x: -90, y: 0, z: 0}
+  modelRotationOffset: {x: 0, y: 0, z: 0}
 --- !u!114 &7541678506397845873
 MonoBehaviour:
   m_ObjectHideFlags: 0
