@@ -95,57 +95,16 @@ public class PlayerJetController : MonoBehaviour
         // ── Roll: 좌우 기울기 (로컬 Z축 회전, 우측 입력 → 음수 방향)
         float rollAmount = -roll * settings.rollSpeed * Time.fixedDeltaTime;
 
-        // ── 자동 Yaw: 롤 방향으로 자연스럽게 선회 (로컬 Y축)
-        float yawAmount = roll * settings.rollSpeed * settings.autoYawStrength * Time.fixedDeltaTime;
+        // VR 조종에서는 좌/우 컨트롤러 기울임이 순수 롤만 담당한다.
+        // 기체가 기울어진 뒤 pitch가 로컬 축으로 적용되면서 진행 방향이 자연스럽게 바뀐다.
+        float yawAmount = _input.useVR
+            ? 0f
+            : roll * settings.rollSpeed * settings.autoYawStrength * Time.fixedDeltaTime;
 
-        // 목표 회전값을 먼저 계산한 뒤 피치 제한 적용 (1프레임 지연 방지)
+        // 목표 회전값을 바로 적용한다. VR 조종은 로컬 회전 기준이라 pitch 제한을 두지 않는다.
         Quaternion deltaRotation = Quaternion.Euler(pitchAmount, yawAmount, rollAmount);
         Quaternion targetRotation = _rb.rotation * deltaRotation;
-
-        // ── 피치 각도 제한 적용 후 한 번만 MoveRotation 호출
-        targetRotation = ClampPitchAngle(targetRotation);
         _rb.MoveRotation(targetRotation);
-    }
-
-    // ──────────────────────────────────────────────
-    //  피치 각도 제한
-    // ──────────────────────────────────────────────
-    // 피치 각도를 제한한 Quaternion을 반환 (1프레임 지연 없이 목표 회전값 기준으로 처리)
-    private Quaternion ClampPitchAngle(Quaternion rotation)
-    {
-        if (settings.maxPitchAngle >= 90f) return rotation;
-
-        // 계산된 목표 회전 기준의 forward 벡터 사용
-        Vector3 forward = rotation * Vector3.forward;
-        float pitchAngle = Mathf.Asin(Mathf.Clamp(forward.y, -1f, 1f)) * Mathf.Rad2Deg;
-
-        if (Mathf.Abs(pitchAngle) > settings.maxPitchAngle)
-        {
-            float clampedPitch = Mathf.Clamp(pitchAngle, -settings.maxPitchAngle, settings.maxPitchAngle);
-            float clampedPitchRad = clampedPitch * Mathf.Deg2Rad;
-
-            // 수직(90도)에 가까울 때 flatForward가 zero벡터가 되는 NaN 방지
-            Vector3 flatForward = new Vector3(forward.x, 0f, forward.z);
-            if (flatForward.sqrMagnitude < 0.001f)
-            {
-                flatForward = Vector3.forward;
-            }
-            else
-            {
-                flatForward.Normalize();
-            }
-
-            Vector3 clampedForward = new Vector3(
-                flatForward.x * Mathf.Cos(clampedPitchRad),
-                Mathf.Sin(clampedPitchRad),
-                flatForward.z * Mathf.Cos(clampedPitchRad)
-            ).normalized;
-
-            Quaternion clampedRotation = Quaternion.LookRotation(clampedForward, rotation * Vector3.up);
-            return Quaternion.Slerp(rotation, clampedRotation, 0.5f);
-        }
-
-        return rotation;
     }
 
     // ──────────────────────────────────────────────
