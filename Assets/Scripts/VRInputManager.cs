@@ -49,6 +49,10 @@ public class VRInputManager : MonoBehaviour
     [Range(0f, 30f)]
     public float vrIdleTiltAngle = 10f;
 
+    [Tooltip("Scales aircraft pitch/roll rotation speed in VR mode.")]
+    [Range(0.1f, 1f)]
+    public float vrRotationSpeedScale = 0.45f;
+
     [Tooltip("Use the first right controller pose detected in VR mode as neutral.")]
     public bool autoCalibrateRightControllerNeutral = true;
 
@@ -402,26 +406,10 @@ public class VRInputManager : MonoBehaviour
         _debugRollFromEulerY = Mathf.Clamp(NormalizeAngle(relativeEuler.y) / maxTilt, -1f, 1f);
         _debugRollFromEulerZ = Mathf.Clamp(NormalizeAngle(relativeEuler.z) / maxTilt, -1f, 1f);
 
-        float rawRollInput = PickLargestMagnitude(
-            _debugRollFromLocalZ,
-            _debugRollFromLocalY,
-            _debugRollFromEulerY,
-            _debugRollFromEulerZ);
+        float rawRollInput = Mathf.Abs(_debugRollFromLocalY) > Mathf.Abs(_debugRollFromLocalZ)
+            ? _debugRollFromLocalY
+            : _debugRollFromLocalZ;
         rollInput = ApplyTiltIdleZone(rawRollInput, idleTiltNormalized);
-    }
-
-    private float PickLargestMagnitude(params float[] values)
-    {
-        float result = 0f;
-        for (int i = 0; i < values.Length; i++)
-        {
-            if (Mathf.Abs(values[i]) > Mathf.Abs(result))
-            {
-                result = values[i];
-            }
-        }
-
-        return result;
     }
 
     private float NormalizeAngle(float angle)
@@ -481,6 +469,7 @@ public class VRInputManager : MonoBehaviour
         GUILayout.Label($"Roll Z/Y   : {_debugRollFromLocalZ:F3} / {_debugRollFromLocalY:F3}", style);
         GUILayout.Label($"Euler X/Y/Z: {_debugPitchFromEulerX:F3} / {_debugRollFromEulerY:F3} / {_debugRollFromEulerZ:F3}", style);
         GUILayout.Label($"Idle Tilt  : {vrIdleTiltAngle:F1} deg", style);
+        GUILayout.Label($"VR Rot x   : {vrRotationSpeedScale:F2}", style);
         GUILayout.Label($"Trigger    : {TriggerValue:F3}", style);
         GUILayout.Label(IsCursorLocked ? "Cursor: LOCKED (ESC to unlock)" : "Cursor: FREE (Click to lock)", style);
         GUILayout.EndArea();

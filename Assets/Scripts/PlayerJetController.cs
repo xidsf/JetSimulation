@@ -88,12 +88,13 @@ public class PlayerJetController : MonoBehaviour
     {
         float pitch = _input.PitchInput;
         float roll  = _input.RollInput;
+        float rotationSpeedScale = _input.useVR ? Mathf.Max(0f, _input.vrRotationSpeedScale) : 1f;
 
         // ── Pitch: 기수 올리기/내리기 (로컬 X축 회전)
-        float pitchAmount = -pitch * settings.pitchSpeed * Time.fixedDeltaTime;
+        float pitchAmount = -pitch * settings.pitchSpeed * rotationSpeedScale * Time.fixedDeltaTime;
 
         // ── Roll: 좌우 기울기 (로컬 Z축 회전, 우측 입력 → 음수 방향)
-        float rollAmount = -roll * settings.rollSpeed * Time.fixedDeltaTime;
+        float rollAmount = -roll * settings.rollSpeed * rotationSpeedScale * Time.fixedDeltaTime;
 
         // VR 조종에서는 좌/우 컨트롤러 기울임이 순수 롤만 담당한다.
         // 기체가 기울어진 뒤 pitch가 로컬 축으로 적용되면서 진행 방향이 자연스럽게 바뀐다.
