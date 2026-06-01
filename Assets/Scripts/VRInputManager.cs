@@ -17,6 +17,15 @@ using UnityEngine.InputSystem.XR;
 /// </summary>
 public class VRInputManager : MonoBehaviour
 {
+    private enum TiltAxisSource
+    {
+        None,
+        PitchForward,
+        PitchEulerX,
+        RollLocalZ,
+        RollLocalY
+    }
+
     // ──────────────────────────────────────────────
     //  인스턴스 (싱글톤)
     // ──────────────────────────────────────────────
@@ -87,6 +96,8 @@ public class VRInputManager : MonoBehaviour
     private float _debugRollFromEulerY;
     private float _debugRollFromEulerZ;
     private string _debugInputSource = "None";
+    private TiltAxisSource _pitchAxisSource = TiltAxisSource.None;
+    private TiltAxisSource _rollAxisSource = TiltAxisSource.None;
     private XRController _rightController;
     private UnityEngine.XR.InputDevice _rightHandXRDevice;
     private readonly List<UnityEngine.XR.InputDevice> _rightHandXRDevices = new List<UnityEngine.XR.InputDevice>();
@@ -372,6 +383,8 @@ public class VRInputManager : MonoBehaviour
         _hasRightControllerNeutral = true;
         _rawPitch = 0f;
         _rawRoll = 0f;
+        _pitchAxisSource = TiltAxisSource.None;
+        _rollAxisSource = TiltAxisSource.None;
     }
 
     private void ResetInputToNeutral()
@@ -397,9 +410,13 @@ public class VRInputManager : MonoBehaviour
 
         float pitchFromForward = Mathf.Clamp(relativeForward.y / maxTiltSin, -1f, 1f);
         _debugPitchFromEulerX = Mathf.Clamp(NormalizeAngle(relativeEuler.x) / maxTilt, -1f, 1f);
-        float rawPitchInput = Mathf.Abs(_debugPitchFromEulerX) > Mathf.Abs(pitchFromForward)
-            ? _debugPitchFromEulerX
-            : pitchFromForward;
+        float rawPitchInput = ResolveTiltAxis(
+            ref _pitchAxisSource,
+            TiltAxisSource.PitchForward,
+            pitchFromForward,
+            TiltAxisSource.PitchEulerX,
+            _debugPitchFromEulerX,
+            idleTiltNormalized);
         pitchInput = ApplyInputThreshold(
             ApplyTiltIdleZone(rawPitchInput, idleTiltNormalized),
             vrPitchInputThreshold);
@@ -412,10 +429,37 @@ public class VRInputManager : MonoBehaviour
         _debugRollFromEulerY = Mathf.Clamp(NormalizeAngle(relativeEuler.y) / maxTilt, -1f, 1f);
         _debugRollFromEulerZ = Mathf.Clamp(NormalizeAngle(relativeEuler.z) / maxTilt, -1f, 1f);
 
-        float rawRollInput = Mathf.Abs(_debugRollFromLocalY) > Mathf.Abs(_debugRollFromLocalZ)
-            ? _debugRollFromLocalY
-            : _debugRollFromLocalZ;
+        float rawRollInput = ResolveTiltAxis(
+            ref _rollAxisSource,
+            TiltAxisSource.RollLocalZ,
+            _debugRollFromLocalZ,
+            TiltAxisSource.RollLocalY,
+            _debugRollFromLocalY,
+            idleTiltNormalized);
         rollInput = ApplyTiltIdleZone(rawRollInput, idleTiltNormalized);
+    }
+
+    private float ResolveTiltAxis(
+        ref TiltAxisSource lockedSource,
+        TiltAxisSource firstSource,
+        float firstValue,
+        TiltAxisSource secondSource,
+        float secondValue,
+        float lockThreshold)
+    {
+        if (lockedSource == TiltAxisSource.None)
+        {
+            float firstMagnitude = Mathf.Abs(firstValue);
+            float secondMagnitude = Mathf.Abs(secondValue);
+            if (Mathf.Max(firstMagnitude, secondMagnitude) <= lockThreshold)
+            {
+                return 0f;
+            }
+
+            lockedSource = secondMagnitude > firstMagnitude ? secondSource : firstSource;
+        }
+
+        return lockedSource == secondSource ? secondValue : firstValue;
     }
 
     private float NormalizeAngle(float angle)
@@ -476,8 +520,8 @@ public class VRInputManager : MonoBehaviour
     {
         if (!Application.isEditor && !Debug.isDebugBuild) return;
 
-        GUILayout.BeginArea(new Rect(10, 10, 300, 230));
-        GUI.Box(new Rect(0, 0, 300, 230), "");
+        GUILayout.BeginArea(new Rect(10, 10, 300, 250));
+        GUI.Box(new Rect(0, 0, 300, 250), "");
         GUIStyle style = new GUIStyle(GUI.skin.label);
         style.fontSize = 13;
 
@@ -485,6 +529,7 @@ public class VRInputManager : MonoBehaviour
         GUILayout.Label($"Input Src  : {_debugInputSource}", style);
         GUILayout.Label($"PitchInput : {PitchInput:F3}", style);
         GUILayout.Label($"RollInput  : {RollInput:F3}", style);
+        GUILayout.Label($"Axis P/R   : {_pitchAxisSource} / {_rollAxisSource}", style);
         GUILayout.Label($"Roll Z/Y   : {_debugRollFromLocalZ:F3} / {_debugRollFromLocalY:F3}", style);
         GUILayout.Label($"Euler X/Y/Z: {_debugPitchFromEulerX:F3} / {_debugRollFromEulerY:F3} / {_debugRollFromEulerZ:F3}", style);
         GUILayout.Label($"Idle Tilt  : {vrIdleTiltAngle:F1} deg", style);
