@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.XR;
 
 /// <summary>
 /// 입력 추상화 레이어.
@@ -37,6 +39,21 @@ public class VRInputManager : MonoBehaviour
     [Range(0f, 0.3f)]
     public float inputDeadzone = 0.05f;
 
+    [Header("=== VR Controller Tilt ===")]
+    [Tooltip("Right controller tilt angle that becomes full pitch/roll input.")]
+    [Range(5f, 90f)]
+    public float vrMaxTiltAngle = 35f;
+
+    [Tooltip("Controller tilt under this angle is treated as idle input.")]
+    [Range(0f, 30f)]
+    public float vrIdleTiltAngle = 10f;
+
+    [Tooltip("Use the first right controller pose detected in VR mode as neutral.")]
+    public bool autoCalibrateRightControllerNeutral = true;
+
+    [Tooltip("Press the right controller primary button to reset the neutral pose.")]
+    public bool allowVRNeutralReset = true;
+
     // ──────────────────────────────────────────────
     //  공개 읽기 속성 (다른 스크립트가 이 값을 소비)
     // ──────────────────────────────────────────────
@@ -58,6 +75,11 @@ public class VRInputManager : MonoBehaviour
     // ──────────────────────────────────────────────
     private float _rawPitch;
     private float _rawRoll;
+    private float _debugRollFromLocalZ;
+    private float _debugRollFromLocalY;
+    private XRController _rightController;
+    private Quaternion _rightControllerNeutralRotation = Quaternion.identity;
+    private bool _hasRightControllerNeutral;
 
     // ──────────────────────────────────────────────
     //  Unity 생명주기
@@ -147,17 +169,25 @@ public class VRInputManager : MonoBehaviour
         // 마우스 델타 읽기 (새 Input System)
         Vector2 mouseDelta = Mouse.current.delta.ReadValue();
 
-        // 감도 적용 및 정규화 (256 픽셀 기준으로 -1 ~ 1 범위)
-        float targetPitch =  mouseDelta.y / 256f * mouseSensitivity;
-        float targetRoll  =  mouseDelta.x / 256f * mouseSensitivity;
+        float deltaTime = Time.deltaTime;
+        if (deltaTime > 0f)
+        {
+            // 프레임 레이트에 독립적인 초당 픽셀 이동 속도 계산
+            float mouseVelocityY = mouseDelta.y / deltaTime;
+            float mouseVelocityX = mouseDelta.x / deltaTime;
 
-        // -1 ~ 1 클램프
-        targetPitch = Mathf.Clamp(targetPitch, -1f, 1f);
-        targetRoll  = Mathf.Clamp(targetRoll,  -1f, 1f);
+            // 초당 1000픽셀 이동을 기준(1.0)으로 감도 적용
+            float targetPitch = mouseVelocityY / 1000f * mouseSensitivity;
+            float targetRoll  = mouseVelocityX / 1000f * mouseSensitivity;
 
-        // 스무딩
-        _rawPitch = Mathf.Lerp(_rawPitch, targetPitch, Time.deltaTime * inputSmoothing);
-        _rawRoll  = Mathf.Lerp(_rawRoll,  targetRoll,  Time.deltaTime * inputSmoothing);
+            // -1 ~ 1 클램프
+            targetPitch = Mathf.Clamp(targetPitch, -1f, 1f);
+            targetRoll  = Mathf.Clamp(targetRoll,  -1f, 1f);
+
+            // 스무딩
+            _rawPitch = Mathf.Lerp(_rawPitch, targetPitch, deltaTime * inputSmoothing);
+            _rawRoll  = Mathf.Lerp(_rawRoll,  targetRoll,  deltaTime * inputSmoothing);
+        }
 
         PitchInput = ApplyDeadzone(_rawPitch);
         RollInput  = ApplyDeadzone(_rawRoll);
@@ -171,11 +201,43 @@ public class VRInputManager : MonoBehaviour
     // ──────────────────────────────────────────────
     private void UpdateVRInput()
     {
-        // TODO: 파트 1 VR 구현 시 XR 컨트롤러 데이터 읽기
-        // 예: rightHandDevice.deviceRotation → pitchInput/rollInput 변환
-        PitchInput   = 0f;
-        RollInput    = 0f;
-        TriggerValue = 0f;
+        // Convert right controller tilt into jet pitch/roll input.
+        XRController rightController = GetRightHandController();
+        if (rightController == null || rightController.deviceRotation == null)
+        {
+            ResetInputToNeutral();
+            return;
+        }
+
+        Quaternion controllerRotation = rightController.deviceRotation.ReadValue();
+        if (!IsValidRotation(controllerRotation))
+        {
+            ResetInputToNeutral();
+            return;
+        }
+
+        ButtonControl primaryButton = rightController.TryGetChildControl<ButtonControl>("primaryButton");
+        AxisControl trigger = rightController.TryGetChildControl<AxisControl>("trigger");
+
+        bool shouldSetNeutral = !_hasRightControllerNeutral && autoCalibrateRightControllerNeutral;
+        bool resetNeutralPressed = allowVRNeutralReset
+            && primaryButton != null
+            && primaryButton.wasPressedThisFrame;
+
+        if (shouldSetNeutral || resetNeutralPressed)
+        {
+            SetRightControllerNeutral(controllerRotation);
+        }
+
+        GetControllerTiltInput(controllerRotation, out float targetPitch, out float targetRoll);
+
+        float deltaTime = Time.deltaTime;
+        _rawPitch = Mathf.Lerp(_rawPitch, targetPitch, deltaTime * inputSmoothing);
+        _rawRoll = Mathf.Lerp(_rawRoll, targetRoll, deltaTime * inputSmoothing);
+
+        PitchInput = ApplyDeadzone(_rawPitch);
+        RollInput = ApplyDeadzone(_rawRoll);
+        TriggerValue = trigger != null ? trigger.ReadValue() : 0f;
     }
 
     // ──────────────────────────────────────────────
@@ -190,18 +252,124 @@ public class VRInputManager : MonoBehaviour
     // ──────────────────────────────────────────────
     //  디버그 GUI (에디터/빌드에서 입력값 확인용)
     // ──────────────────────────────────────────────
+    private XRController GetRightHandController()
+    {
+        if (_rightController != null && _rightController.added && IsRightHandController(_rightController))
+        {
+            return _rightController;
+        }
+
+        _rightController = null;
+
+        foreach (InputDevice device in InputSystem.devices)
+        {
+            if (device is XRController controller && IsRightHandController(controller))
+            {
+                _rightController = controller;
+                return _rightController;
+            }
+        }
+
+        return null;
+    }
+
+    private bool IsRightHandController(InputDevice device)
+    {
+        foreach (var usage in device.usages)
+        {
+            if (usage == CommonUsages.RightHand)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void SetRightControllerNeutral(Quaternion rotation)
+    {
+        _rightControllerNeutralRotation = rotation;
+        _hasRightControllerNeutral = true;
+        _rawPitch = 0f;
+        _rawRoll = 0f;
+    }
+
+    private void ResetInputToNeutral()
+    {
+        _rawPitch = Mathf.Lerp(_rawPitch, 0f, Time.deltaTime * inputSmoothing);
+        _rawRoll = Mathf.Lerp(_rawRoll, 0f, Time.deltaTime * inputSmoothing);
+        PitchInput = ApplyDeadzone(_rawPitch);
+        RollInput = ApplyDeadzone(_rawRoll);
+        TriggerValue = 0f;
+    }
+
+    private void GetControllerTiltInput(Quaternion rotation, out float pitchInput, out float rollInput)
+    {
+        float maxTilt = Mathf.Max(1f, vrMaxTiltAngle);
+        float maxTiltSin = Mathf.Sin(maxTilt * Mathf.Deg2Rad);
+        float idleTilt = Mathf.Clamp(vrIdleTiltAngle, 0f, maxTilt - 0.1f);
+        float idleTiltNormalized = Mathf.Sin(idleTilt * Mathf.Deg2Rad) / maxTiltSin;
+        Quaternion relativeRotation = Quaternion.Inverse(_rightControllerNeutralRotation) * rotation;
+
+        Vector3 relativeForward = relativeRotation * Vector3.forward;
+        Vector3 relativeRight = relativeRotation * Vector3.right;
+
+        pitchInput = ApplyTiltIdleZone(Mathf.Clamp(relativeForward.y / maxTiltSin, -1f, 1f), idleTiltNormalized);
+
+        float rollFromLocalZ = -relativeRight.y / maxTiltSin;
+        float rollFromLocalY = relativeForward.x / maxTiltSin;
+
+        _debugRollFromLocalZ = Mathf.Clamp(rollFromLocalZ, -1f, 1f);
+        _debugRollFromLocalY = Mathf.Clamp(rollFromLocalY, -1f, 1f);
+
+        // Different XR backends expose the physical controller tilt around different local axes.
+        // Use whichever candidate is actually moving so left/right hand tilt consistently rolls the jet.
+        float rawRollInput = Mathf.Abs(_debugRollFromLocalY) > Mathf.Abs(_debugRollFromLocalZ)
+            ? _debugRollFromLocalY
+            : _debugRollFromLocalZ;
+        rollInput = ApplyTiltIdleZone(rawRollInput, idleTiltNormalized);
+    }
+
+    private float ApplyTiltIdleZone(float value, float idleThreshold)
+    {
+        float magnitude = Mathf.Abs(value);
+        if (magnitude <= idleThreshold)
+        {
+            return 0f;
+        }
+
+        float remappedMagnitude = Mathf.InverseLerp(idleThreshold, 1f, magnitude);
+        return Mathf.Sign(value) * remappedMagnitude;
+    }
+
+    private bool IsValidRotation(Quaternion rotation)
+    {
+        return IsFinite(rotation.x)
+            && IsFinite(rotation.y)
+            && IsFinite(rotation.z)
+            && IsFinite(rotation.w)
+            && rotation != new Quaternion(0f, 0f, 0f, 0f);
+    }
+
+    private bool IsFinite(float value)
+    {
+        return !float.IsNaN(value) && !float.IsInfinity(value);
+    }
+
     private void OnGUI()
     {
         if (!Application.isEditor && !Debug.isDebugBuild) return;
 
-        GUILayout.BeginArea(new Rect(10, 10, 260, 120));
-        GUI.Box(new Rect(0, 0, 260, 120), "");
+        GUILayout.BeginArea(new Rect(10, 10, 260, 160));
+        GUI.Box(new Rect(0, 0, 260, 160), "");
         GUIStyle style = new GUIStyle(GUI.skin.label);
         style.fontSize = 13;
 
         GUILayout.Label($"[VRInputManager] Mode: {(useVR ? "VR" : "Mouse")}", style);
         GUILayout.Label($"PitchInput : {PitchInput:F3}", style);
         GUILayout.Label($"RollInput  : {RollInput:F3}", style);
+        GUILayout.Label($"Roll Z/Y   : {_debugRollFromLocalZ:F3} / {_debugRollFromLocalY:F3}", style);
+        GUILayout.Label($"Idle Tilt  : {vrIdleTiltAngle:F1} deg", style);
         GUILayout.Label($"Trigger    : {TriggerValue:F3}", style);
         GUILayout.Label(IsCursorLocked ? "Cursor: LOCKED (ESC to unlock)" : "Cursor: FREE (Click to lock)", style);
         GUILayout.EndArea();

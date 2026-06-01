@@ -60,6 +60,12 @@ public class PlayerJetController : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // _input이 null이면 재시도 (동적 생성 대응)
+        if (_input == null)
+        {
+            _input = VRInputManager.Instance;
+        }
+
         if (_input == null || settings == null) return;
 
         ApplyForwardThrust();
@@ -89,41 +95,16 @@ public class PlayerJetController : MonoBehaviour
         // ── Roll: 좌우 기울기 (로컬 Z축 회전, 우측 입력 → 음수 방향)
         float rollAmount = -roll * settings.rollSpeed * Time.fixedDeltaTime;
 
-        // ── 자동 Yaw: 롤 방향으로 자연스럽게 선회 (로컬 Y축)
-        float yawAmount = roll * settings.rollSpeed * settings.autoYawStrength * Time.fixedDeltaTime;
+        // VR 조종에서는 좌/우 컨트롤러 기울임이 순수 롤만 담당한다.
+        // 기체가 기울어진 뒤 pitch가 로컬 축으로 적용되면서 진행 방향이 자연스럽게 바뀐다.
+        float yawAmount = _input.useVR
+            ? 0f
+            : roll * settings.rollSpeed * settings.autoYawStrength * Time.fixedDeltaTime;
 
+        // 목표 회전값을 바로 적용한다. VR 조종은 로컬 회전 기준이라 pitch 제한을 두지 않는다.
         Quaternion deltaRotation = Quaternion.Euler(pitchAmount, yawAmount, rollAmount);
-        _rb.MoveRotation(_rb.rotation * deltaRotation);
-
-        // ── 피치 각도 제한 (너무 수직으로 세워지지 않도록)
-        ClampPitchAngle();
-    }
-
-    // ──────────────────────────────────────────────
-    //  피치 각도 제한
-    // ──────────────────────────────────────────────
-    private void ClampPitchAngle()
-    {
-        if (settings.maxPitchAngle >= 90f) return;
-
-        Vector3 forward = transform.forward;
-        float pitchAngle = Mathf.Asin(Mathf.Clamp(forward.y, -1f, 1f)) * Mathf.Rad2Deg;
-
-        if (Mathf.Abs(pitchAngle) > settings.maxPitchAngle)
-        {
-            float clampedPitch = Mathf.Clamp(pitchAngle, -settings.maxPitchAngle, settings.maxPitchAngle);
-            float clampedPitchRad = clampedPitch * Mathf.Deg2Rad;
-
-            Vector3 flatForward = new Vector3(forward.x, 0f, forward.z).normalized;
-            Vector3 clampedForward = new Vector3(
-                flatForward.x * Mathf.Cos(clampedPitchRad),
-                Mathf.Sin(clampedPitchRad),
-                flatForward.z * Mathf.Cos(clampedPitchRad)
-            ).normalized;
-
-            Quaternion targetRotation = Quaternion.LookRotation(clampedForward, transform.up);
-            _rb.MoveRotation(Quaternion.Slerp(_rb.rotation, targetRotation, 0.5f));
-        }
+        Quaternion targetRotation = _rb.rotation * deltaRotation;
+        _rb.MoveRotation(targetRotation);
     }
 
     // ──────────────────────────────────────────────
