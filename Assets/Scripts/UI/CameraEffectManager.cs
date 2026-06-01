@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using System.Collections;
 using TMPro;
 using JetSimulation.Core;
-using JetSimulation.Environment;
+using JetSimulation.Environment; // 네임스페이스 주의 (경계선 매니저)
 
 namespace JetSimulation.UI
 {
@@ -34,6 +34,10 @@ namespace JetSimulation.UI
 
         [Tooltip("완전히 암전된 후 나타날 버튼들을 넣어주세요")]
         [SerializeField] private GameObject[] gameOverButtons;
+
+        // 완전히 암전된 후 버튼과 함께 나타날 최종 점수 오브젝트 추가
+        [Tooltip("완전히 암전된 후 나타날 최종 점수 텍스트 오브젝트를 넣어주세요")]
+        [SerializeField] private GameObject finalScoreObject;
 
         private Coroutine effectCoroutine;
         private bool isOutOfBounds = false;
@@ -141,7 +145,6 @@ namespace JetSimulation.UI
         // --- 3. 3D 구체를 활용한 암전 및 UIManager 연동 ---
         private void ShowGameOverFade()
         {
-            // 1. 암전용 3D 구체 활성화
             if (fadeRenderer != null)
             {
                 fadeRenderer.gameObject.SetActive(true);
@@ -149,11 +152,9 @@ namespace JetSimulation.UI
 
             if (UIManager.Instance != null)
             {
-                // EnablePanelOverlay 대신 ShowPanel을 사용하면 HUD가 자동으로 꺼집니다!
                 UIManager.Instance.ShowPanel(UIPanelType.GameOver);
             }
 
-            // 3. 서서히 암전되면서 텍스트가 나타나는 코루틴 실행
             StartCoroutine(FadeOutAndShowUIRoutine());
         }
 
@@ -161,7 +162,6 @@ namespace JetSimulation.UI
         {
             float elapsed = 0f;
 
-            // 검은 구체의 알파값을 0으로 세팅
             Color bgColor = Color.black;
             if (fadeRenderer != null)
             {
@@ -170,7 +170,6 @@ namespace JetSimulation.UI
                 fadeRenderer.material.color = bgColor;
             }
 
-            // 텍스트의 알파값을 0으로 세팅
             Color textColor = Color.white;
             if (gameOverText != null)
             {
@@ -180,11 +179,12 @@ namespace JetSimulation.UI
                 gameOverText.gameObject.SetActive(true);
             }
 
-            // 페이드 도중에는 버튼이 보이면 안 되므로 강제로 숨김
+            // 페이드 도중에는 버튼과 점수를 강제로 숨김
             foreach (var btn in gameOverButtons)
             {
                 if (btn != null) btn.SetActive(false);
             }
+            if (finalScoreObject != null) finalScoreObject.SetActive(false);
 
             // 2초 동안 서서히 암전 & 텍스트 페이드 인
             while (elapsed < fadeDuration)
@@ -207,11 +207,12 @@ namespace JetSimulation.UI
                 yield return null;
             }
 
-            // 완전히 까매진 후 버튼 활성화
+            // 완전히 까매진 후 버튼과 점수 활성화
             foreach (var btn in gameOverButtons)
             {
                 if (btn != null) btn.SetActive(true);
             }
+            if (finalScoreObject != null) finalScoreObject.SetActive(true);
         }
     }
 }
