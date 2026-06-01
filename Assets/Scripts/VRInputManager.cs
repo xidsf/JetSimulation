@@ -49,6 +49,10 @@ public class VRInputManager : MonoBehaviour
     [Range(0f, 30f)]
     public float vrIdleTiltAngle = 10f;
 
+    [Tooltip("Pitch input under this absolute value is ignored in VR mode.")]
+    [Range(0f, 0.95f)]
+    public float vrPitchInputThreshold = 0.5f;
+
     [Tooltip("Scales aircraft pitch/roll rotation speed in VR mode.")]
     [Range(0.1f, 1f)]
     public float vrRotationSpeedScale = 0.45f;
@@ -396,7 +400,9 @@ public class VRInputManager : MonoBehaviour
         float rawPitchInput = Mathf.Abs(_debugPitchFromEulerX) > Mathf.Abs(pitchFromForward)
             ? _debugPitchFromEulerX
             : pitchFromForward;
-        pitchInput = ApplyTiltIdleZone(rawPitchInput, idleTiltNormalized);
+        pitchInput = ApplyInputThreshold(
+            ApplyTiltIdleZone(rawPitchInput, idleTiltNormalized),
+            vrPitchInputThreshold);
 
         float rollFromLocalZ = -relativeRight.y / maxTiltSin;
         float rollFromLocalY = relativeForward.x / maxTiltSin;
@@ -425,6 +431,19 @@ public class VRInputManager : MonoBehaviour
         }
 
         return angle;
+    }
+
+    private float ApplyInputThreshold(float value, float threshold)
+    {
+        float clampedThreshold = Mathf.Clamp(threshold, 0f, 0.95f);
+        float magnitude = Mathf.Abs(value);
+        if (magnitude <= clampedThreshold)
+        {
+            return 0f;
+        }
+
+        float remappedMagnitude = Mathf.InverseLerp(clampedThreshold, 1f, magnitude);
+        return Mathf.Sign(value) * remappedMagnitude;
     }
 
     private float ApplyTiltIdleZone(float value, float idleThreshold)
@@ -457,8 +476,8 @@ public class VRInputManager : MonoBehaviour
     {
         if (!Application.isEditor && !Debug.isDebugBuild) return;
 
-        GUILayout.BeginArea(new Rect(10, 10, 300, 210));
-        GUI.Box(new Rect(0, 0, 300, 210), "");
+        GUILayout.BeginArea(new Rect(10, 10, 300, 230));
+        GUI.Box(new Rect(0, 0, 300, 230), "");
         GUIStyle style = new GUIStyle(GUI.skin.label);
         style.fontSize = 13;
 
@@ -469,6 +488,7 @@ public class VRInputManager : MonoBehaviour
         GUILayout.Label($"Roll Z/Y   : {_debugRollFromLocalZ:F3} / {_debugRollFromLocalY:F3}", style);
         GUILayout.Label($"Euler X/Y/Z: {_debugPitchFromEulerX:F3} / {_debugRollFromEulerY:F3} / {_debugRollFromEulerZ:F3}", style);
         GUILayout.Label($"Idle Tilt  : {vrIdleTiltAngle:F1} deg", style);
+        GUILayout.Label($"Pitch Cut  : {vrPitchInputThreshold:F2}", style);
         GUILayout.Label($"VR Rot x   : {vrRotationSpeedScale:F2}", style);
         GUILayout.Label($"Trigger    : {TriggerValue:F3}", style);
         GUILayout.Label(IsCursorLocked ? "Cursor: LOCKED (ESC to unlock)" : "Cursor: FREE (Click to lock)", style);
