@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
 using System.Collections;
+using TMPro;
 using JetSimulation.Core;
-using JetSimulation.Environment; // 추가: 맵 이탈 매니저 참조용
+using JetSimulation.Environment;
 
 namespace JetSimulation.UI
 {
@@ -10,25 +11,32 @@ namespace JetSimulation.UI
     {
         [Header("References")]
         [SerializeField] private PlayerHealth playerHealth;
-        [Tooltip("방금 만든 맵 이탈 감지 매니저를 연결해주세요")]
         [SerializeField] private FlightBoundaryManager boundaryManager;
 
         [SerializeField] private Image vignetteImage;
-        [SerializeField] private Image fadeImage;
 
-        [Header("Damage Settings (피격)")]
+        [Header("Damage Settings")]
         [SerializeField] private float damageVignetteDuration = 0.5f;
-        [SerializeField] private float maxDamageAlpha = 0.8f; // 피격 시 강한 붉은색
+        [SerializeField] private float maxDamageAlpha = 0.8f;
 
-        [Header("Warning Settings (맵 이탈 경고)")]
-        [SerializeField] private float warningPulseSpeed = 3f; // 깜빡이는 속도
-        [SerializeField] private float maxWarningAlpha = 0.4f; // 경고 시 은은한 붉은색
+        [Header("Warning Settings")]
+        [SerializeField] private float warningPulseSpeed = 3f;
+        [SerializeField] private float maxWarningAlpha = 0.4f;
 
         [Header("Game Over Settings")]
         [SerializeField] private float fadeDuration = 2f;
 
+        [Tooltip("카메라 자식으로 넣은 3D 구체(FadeSphere)를 넣어주세요")]
+        [SerializeField] private Renderer fadeRenderer;
+
+        [Tooltip("배경과 함께 서서히 나타날 텍스트 (작전 실패)")]
+        [SerializeField] private TextMeshProUGUI gameOverText;
+
+        [Tooltip("완전히 암전된 후 나타날 버튼들을 넣어주세요")]
+        [SerializeField] private GameObject[] gameOverButtons;
+
         private Coroutine effectCoroutine;
-        private bool isOutOfBounds = false; // 현재 맵 밖에 있는지 여부
+        private bool isOutOfBounds = false;
 
         private void OnEnable()
         {
@@ -39,7 +47,6 @@ namespace JetSimulation.UI
             }
             if (boundaryManager != null)
             {
-                // 맵 이탈 신호 구독
                 boundaryManager.OnBoundaryStateChanged += HandleBoundaryWarning;
             }
         }
@@ -57,11 +64,9 @@ namespace JetSimulation.UI
             }
         }
 
-        // --- 1. 맵 이탈 경고 (심장 박동 펄스) ---
         private void HandleBoundaryWarning(bool isWarning)
         {
             isOutOfBounds = isWarning;
-
             if (isWarning)
             {
                 if (effectCoroutine != null) StopCoroutine(effectCoroutine);
@@ -69,7 +74,6 @@ namespace JetSimulation.UI
             }
             else
             {
-                // 안전 구역으로 돌아오면 코루틴을 끄고 투명하게 복구
                 if (effectCoroutine != null) StopCoroutine(effectCoroutine);
                 ResetVignette();
             }
@@ -80,19 +84,15 @@ namespace JetSimulation.UI
             Color c = vignetteImage.color;
             while (isOutOfBounds)
             {
-                // PingPong을 사용해 0.1 ~ maxWarningAlpha 사이를 부드럽게 오르락내리락
                 c.a = Mathf.Lerp(0.05f, maxWarningAlpha, Mathf.PingPong(Time.time * warningPulseSpeed, 1f));
                 vignetteImage.color = c;
-                yield return null; // 매 프레임 실행
+                yield return null;
             }
         }
 
-        // --- 2. 피격 효과 (우선순위 높음) ---
         private void ShowDamageEffect()
         {
             if (vignetteImage == null) return;
-
-            // 경고 펄스 중이더라도 피격 효과가 덮어씌워지도록 기존 코루틴 중지
             if (effectCoroutine != null) StopCoroutine(effectCoroutine);
             effectCoroutine = StartCoroutine(DamageVignetteRoutine());
         }
@@ -103,7 +103,6 @@ namespace JetSimulation.UI
             Color c = vignetteImage.color;
             float halfDuration = damageVignetteDuration / 2f;
 
-            // 빠르게 번쩍! (Fade In)
             while (elapsed < halfDuration)
             {
                 elapsed += Time.deltaTime;
@@ -112,7 +111,6 @@ namespace JetSimulation.UI
                 yield return null;
             }
 
-            // 다시 투명해짐 (Fade Out)
             elapsed = 0f;
             while (elapsed < halfDuration)
             {
@@ -124,7 +122,6 @@ namespace JetSimulation.UI
 
             ResetVignette();
 
-            // 피격 효과가 끝났는데 여전히 맵 밖이라면, 다시 경고 펄스 시작!
             if (isOutOfBounds)
             {
                 effectCoroutine = StartCoroutine(WarningPulseRoutine());
@@ -141,28 +138,79 @@ namespace JetSimulation.UI
             }
         }
 
-        // --- 3. 게임 오버 암전 ---
+        // --- 3. 3D 구체를 활용한 암전 및 UIManager 연동 ---
         private void ShowGameOverFade()
         {
-            if (fadeImage != null)
+            // 1. 암전용 3D 구체 활성화
+            if (fadeRenderer != null)
             {
-                fadeImage.gameObject.SetActive(true);
-                StartCoroutine(FadeOutRoutine());
+                fadeRenderer.gameObject.SetActive(true);
             }
+
+            if (UIManager.Instance != null)
+            {
+                // EnablePanelOverlay 대신 ShowPanel을 사용하면 HUD가 자동으로 꺼집니다!
+                UIManager.Instance.ShowPanel(UIPanelType.GameOver);
+            }
+
+            // 3. 서서히 암전되면서 텍스트가 나타나는 코루틴 실행
+            StartCoroutine(FadeOutAndShowUIRoutine());
         }
 
-        private IEnumerator FadeOutRoutine()
+        private IEnumerator FadeOutAndShowUIRoutine()
         {
             float elapsed = 0f;
-            Color c = fadeImage.color;
-            c.a = 0f;
 
+            // 검은 구체의 알파값을 0으로 세팅
+            Color bgColor = Color.black;
+            if (fadeRenderer != null)
+            {
+                bgColor = fadeRenderer.material.color;
+                bgColor.a = 0f;
+                fadeRenderer.material.color = bgColor;
+            }
+
+            // 텍스트의 알파값을 0으로 세팅
+            Color textColor = Color.white;
+            if (gameOverText != null)
+            {
+                textColor = gameOverText.color;
+                textColor.a = 0f;
+                gameOverText.color = textColor;
+                gameOverText.gameObject.SetActive(true);
+            }
+
+            // 페이드 도중에는 버튼이 보이면 안 되므로 강제로 숨김
+            foreach (var btn in gameOverButtons)
+            {
+                if (btn != null) btn.SetActive(false);
+            }
+
+            // 2초 동안 서서히 암전 & 텍스트 페이드 인
             while (elapsed < fadeDuration)
             {
                 elapsed += Time.deltaTime;
-                c.a = Mathf.Lerp(0f, 1f, elapsed / fadeDuration);
-                fadeImage.color = c;
+                float alpha = Mathf.Lerp(0f, 1f, elapsed / fadeDuration);
+
+                if (fadeRenderer != null)
+                {
+                    bgColor.a = alpha;
+                    fadeRenderer.material.color = bgColor;
+                }
+
+                if (gameOverText != null)
+                {
+                    textColor.a = alpha;
+                    gameOverText.color = textColor;
+                }
+
                 yield return null;
+            }
+
+            // 완전히 까매진 후 버튼 활성화
+            foreach (var btn in gameOverButtons)
+            {
+                if (btn != null) btn.SetActive(true);
             }
         }
     }

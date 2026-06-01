@@ -1,93 +1,83 @@
 using UnityEngine;
 using System;
 using JetSimulation.Core;
+using JetSimulation.UI;
 
 namespace JetSimulation.Environment
 {
     public sealed class FlightBoundaryManager : MonoBehaviour
     {
+        [Header("Boundary Settings")]
+        [Tooltip("작전 구역의 최대 반경")]
+        [SerializeField] private float maxRadius = 2000f;
+        [Tooltip("이탈 허용 시간 (초)")]
+        [SerializeField] private float warningTimeLimit = 5f;
+
         [Header("References")]
         [SerializeField] private Transform playerTransform;
         [SerializeField] private PlayerHealth playerHealth;
-
-        [Tooltip("방금 만든 시각화용 Sphere 오브젝트를 넣어주세요")]
         [SerializeField] private Transform boundaryVisualizer;
 
-        [Header("Boundary Settings")]
-        [SerializeField] private Vector3 centerPoint = Vector3.zero;
-        [SerializeField] private float maxRadius = 2000f;
-        [SerializeField] private float warningTime = 5f;
+        // 이벤트 정의
+        public event Action<bool> OnBoundaryStateChanged;
+        //  허공 텍스트에 남은 시간을 알려주는 이벤트
+        public event Action<float> OnWarningTimerUpdated;
 
         private bool isOutOfBounds = false;
-        private float timer = 0f;
-
-        private Material visualizerMat;
-        private Color normalColor = new Color(0f, 0.5f, 1f, 0.1f); // 평소: 반투명 파란색
-        private Color warningColor = new Color(1f, 0f, 0f, 0.3f);  // 경고: 반투명 빨간색
-
-        public event Action<float> OnWarningTimerUpdated;
-        public event Action<bool> OnBoundaryStateChanged;
-
-        private void Start()
-        {
-            // 시작할 때 구체의 크기를 maxRadius에 맞춰 자동으로 세팅 (반지름 * 2 = 지름)
-            if (boundaryVisualizer != null)
-            {
-                boundaryVisualizer.localScale = Vector3.one * (maxRadius * 2f);
-                boundaryVisualizer.position = centerPoint;
-
-                // 머티리얼 색상 제어를 위해 캐싱
-                Renderer renderer = boundaryVisualizer.GetComponent<Renderer>();
-                if (renderer != null)
-                {
-                    visualizerMat = renderer.material;
-                    visualizerMat.color = normalColor;
-                }
-            }
-        }
+        private float currentWarningTime = 0f;
 
         private void Update()
         {
-            if (playerTransform == null || playerHealth == null) return;
+            if (playerTransform == null || playerHealth == null || playerHealth.IsDead) return;
 
-            float distanceFromCenter = Vector3.Distance(centerPoint, playerTransform.position);
+            float distance = Vector3.Distance(Vector3.zero, playerTransform.position);
+            bool currentlyOutOfBounds = distance > maxRadius;
 
-            if (distanceFromCenter > maxRadius)
+            if (currentlyOutOfBounds && !isOutOfBounds)
             {
-                if (!isOutOfBounds)
+                isOutOfBounds = true;
+                currentWarningTime = warningTimeLimit;
+                OnBoundaryStateChanged?.Invoke(true);
+
+                if (UIManager.Instance != null)
                 {
-                    isOutOfBounds = true;
-                    timer = warningTime;
-                    OnBoundaryStateChanged?.Invoke(true);
-
-                    if (visualizerMat != null) visualizerMat.color = warningColor;
-                }
-
-                timer -= Time.deltaTime;
-                OnWarningTimerUpdated?.Invoke(timer);
-
-                if (timer <= 0f)
-                {
-                    playerHealth.TakeDamage(9999f, gameObject);
-                    enabled = false;
+                    UIManager.Instance.EnablePanelOverlay(UIPanelType.Warning, true);
                 }
             }
-            else
+            else if (!currentlyOutOfBounds && isOutOfBounds)
             {
-                if (isOutOfBounds)
-                {
-                    isOutOfBounds = false;
-                    OnBoundaryStateChanged?.Invoke(false);
+                isOutOfBounds = false;
+                OnBoundaryStateChanged?.Invoke(false);
 
-                    if (visualizerMat != null) visualizerMat.color = normalColor;
+                if (UIManager.Instance != null)
+                {
+                    UIManager.Instance.EnablePanelOverlay(UIPanelType.Warning, false);
+                }
+            }
+
+            // 이탈 중일 때 카운트다운 및 데미지 처리
+            if (isOutOfBounds)
+            {
+                currentWarningTime -= Time.deltaTime;
+
+                // 매 프레임 남은 시간을 UI 텍스트로 전달
+                OnWarningTimerUpdated?.Invoke(Mathf.Max(0, currentWarningTime));
+
+                if (currentWarningTime <= 0f)
+                {
+                    currentWarningTime = 0f;
+                    playerHealth.TakeDamage(9999f, gameObject);
                 }
             }
         }
 
-        private void OnDrawGizmosSelected()
+        public void SetBoundaryRadius(float newRadius)
         {
-            Gizmos.color = new Color(1f, 0f, 0f, 0.3f);
-            Gizmos.DrawWireSphere(centerPoint, maxRadius);
+            maxRadius = newRadius;
+            if (boundaryVisualizer != null)
+            {
+                boundaryVisualizer.localScale = Vector3.one * (maxRadius * 2f);
+            }
         }
     }
 }

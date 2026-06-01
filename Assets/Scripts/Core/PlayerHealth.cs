@@ -1,50 +1,53 @@
-using System;
 using UnityEngine;
-using JetSimulation.Combat;
+using System;
 
 namespace JetSimulation.Core
 {
-    public sealed class PlayerHealth : MonoBehaviour, IAttackDamageReceiver
+    public sealed class PlayerHealth : MonoBehaviour
     {
         [Header("Health Settings")]
+        [Tooltip("플레이어의 최대 체력")]
         [SerializeField] private float maxHealth = 100f;
-        private float currentHealth;
-        private bool isDead;
 
-        // UI와 시스템이 구독할 이벤트 목록
-        public event Action<float> OnHealthChanged; // 0.0 ~ 1.0 비율 전달
-        public event Action OnTookDamage;           // 피격 이펙트용 신호
-        public event Action OnPlayerDied;           // 사망 신호
+        private float currentHealth;
+
+        public bool IsDead { get; private set; } = false;
+
+        // 인자를 1개만 보내도록 원상 복구 (현재 체력)
+        public event Action<float> OnHealthChanged;
+
+        public event Action OnTookDamage;
+        public event Action OnPlayerDied;
 
         private void Start()
         {
             currentHealth = maxHealth;
-            // 시작 시 UI 게이지를 꽉 차게 초기화
-            OnHealthChanged?.Invoke(1f);
-        }
+            IsDead = false;
 
-        // 팀원이 만든 IAttackDamageReceiver 인터페이스 구현
-        public void TakeDamage(float amount, GameObject source)
-        {
-            if (isDead) return;
-
-            currentHealth -= amount;
-            currentHealth = Mathf.Clamp(currentHealth, 0f, maxHealth);
-
-            // 구독중인 UI와 시스템에 이벤트 발송
-            OnTookDamage?.Invoke();
+            // 수정: 비율(0~1)로 넘겨주기
             OnHealthChanged?.Invoke(currentHealth / maxHealth);
+        }
+        public void TakeDamage(float damage, GameObject damageDealer = null)
+        {
+            if (IsDead || damage <= 0f) return;
+
+            currentHealth -= damage;
+
+            // 수정: 비율(0~1)로 넘겨주기
+            OnHealthChanged?.Invoke(currentHealth / maxHealth);
+            OnTookDamage?.Invoke();
 
             if (currentHealth <= 0f)
             {
-                Die();
-            }
-        }
+                currentHealth = 0f;
+                IsDead = true;
 
-        private void Die()
-        {
-            isDead = true;
-            OnPlayerDied?.Invoke();
+                // 수정: 비율(0~1)로 넘겨주기
+                OnHealthChanged?.Invoke(currentHealth / maxHealth);
+                Debug.Log("[PlayerHealth] 플레이어 체력 0 도달 -> 사망 처리");
+
+                OnPlayerDied?.Invoke();
+            }
         }
     }
 }
