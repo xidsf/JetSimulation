@@ -68,7 +68,11 @@ namespace JetSimulation.EnemySystem
                 return;
             }
 
-            ResolveReferences();
+            if (player == null || playerCamera == null)
+            {
+                ResolveReferences();
+            }
+
             TrackPlayerDirection();
 
             if (player == null || playerCamera == null || enemyPrefabs == null || enemyPrefabs.Length == 0)

@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -20,6 +21,8 @@ namespace JetSimulation.EnemySystem
         public UnityEvent<float, float> damaged;
         public UnityEvent destroyed;
 
+        public static readonly List<EnemyHealth> ActiveEnemies = new List<EnemyHealth>();
+
         private float currentHealth;
         private bool isDestroyed;
 
@@ -31,6 +34,19 @@ namespace JetSimulation.EnemySystem
         private void Awake()
         {
             ResetHealth();
+        }
+
+        private void OnEnable()
+        {
+            if (!ActiveEnemies.Contains(this))
+            {
+                ActiveEnemies.Add(this);
+            }
+        }
+
+        private void OnDisable()
+        {
+            ActiveEnemies.Remove(this);
         }
 
         public void ResetHealth()

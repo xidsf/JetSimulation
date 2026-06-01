@@ -18,6 +18,7 @@ namespace JetSimulation.EnemySystem
         private bool descendBeforeForward;
         private float descentSpeed;
         private bool isDescending;
+        private float maxTravelDistanceSqr;
 
         private void Start()
         {
@@ -51,7 +52,7 @@ namespace JetSimulation.EnemySystem
 
             transform.position = nextPosition;
 
-            if (maxTravelDistance > 0f && Vector3.Distance(spawnPosition, transform.position) >= maxTravelDistance)
+            if (maxTravelDistance > 0f && (transform.position - spawnPosition).sqrMagnitude >= maxTravelDistanceSqr)
             {
                 Destroy(gameObject);
             }
@@ -79,6 +80,7 @@ namespace JetSimulation.EnemySystem
             moveDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector3.back;
             speed = Mathf.Max(0f, moveSpeed);
             maxTravelDistance = travelDistance;
+            maxTravelDistanceSqr = travelDistance * travelDistance;
             lockHeight = shouldLockHeight;
             flightHeight = lockedHeight;
             descendBeforeForward = shouldDescendBeforeForward;
