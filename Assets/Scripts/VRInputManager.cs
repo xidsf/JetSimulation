@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -51,9 +52,6 @@ public class VRInputManager : MonoBehaviour
     [Tooltip("Use the first right controller pose detected in VR mode as neutral.")]
     public bool autoCalibrateRightControllerNeutral = true;
 
-    [Tooltip("Press the right controller primary button to reset the neutral pose.")]
-    public bool allowVRNeutralReset = true;
-
     // ──────────────────────────────────────────────
     //  공개 읽기 속성 (다른 스크립트가 이 값을 소비)
     // ──────────────────────────────────────────────
@@ -77,7 +75,13 @@ public class VRInputManager : MonoBehaviour
     private float _rawRoll;
     private float _debugRollFromLocalZ;
     private float _debugRollFromLocalY;
+    private float _debugPitchFromEulerX;
+    private float _debugRollFromEulerY;
+    private float _debugRollFromEulerZ;
+    private string _debugInputSource = "None";
     private XRController _rightController;
+    private UnityEngine.XR.InputDevice _rightHandXRDevice;
+    private readonly List<UnityEngine.XR.InputDevice> _rightHandXRDevices = new List<UnityEngine.XR.InputDevice>();
     private Quaternion _rightControllerNeutralRotation = Quaternion.identity;
     private bool _hasRightControllerNeutral;
 
@@ -201,30 +205,13 @@ public class VRInputManager : MonoBehaviour
     // ──────────────────────────────────────────────
     private void UpdateVRInput()
     {
-        // Convert right controller tilt into jet pitch/roll input.
-        XRController rightController = GetRightHandController();
-        if (rightController == null || rightController.deviceRotation == null)
+        if (!TryGetRightControllerInput(out Quaternion controllerRotation, out float triggerValue))
         {
             ResetInputToNeutral();
             return;
         }
 
-        Quaternion controllerRotation = rightController.deviceRotation.ReadValue();
-        if (!IsValidRotation(controllerRotation))
-        {
-            ResetInputToNeutral();
-            return;
-        }
-
-        ButtonControl primaryButton = rightController.TryGetChildControl<ButtonControl>("primaryButton");
-        AxisControl trigger = rightController.TryGetChildControl<AxisControl>("trigger");
-
-        bool shouldSetNeutral = !_hasRightControllerNeutral && autoCalibrateRightControllerNeutral;
-        bool resetNeutralPressed = allowVRNeutralReset
-            && primaryButton != null
-            && primaryButton.wasPressedThisFrame;
-
-        if (shouldSetNeutral || resetNeutralPressed)
+        if (!_hasRightControllerNeutral && autoCalibrateRightControllerNeutral)
         {
             SetRightControllerNeutral(controllerRotation);
         }
@@ -237,7 +224,7 @@ public class VRInputManager : MonoBehaviour
 
         PitchInput = ApplyDeadzone(_rawPitch);
         RollInput = ApplyDeadzone(_rawRoll);
-        TriggerValue = trigger != null ? trigger.ReadValue() : 0f;
+        TriggerValue = triggerValue;
     }
 
     // ──────────────────────────────────────────────
@@ -271,6 +258,91 @@ public class VRInputManager : MonoBehaviour
         }
 
         return null;
+    }
+
+    private bool TryGetRightControllerInput(out Quaternion rotation, out float triggerValue)
+    {
+        if (TryGetRightControllerXRInput(out rotation, out triggerValue))
+        {
+            _debugInputSource = "Unity XR";
+            return true;
+        }
+
+        if (TryGetRightControllerInputSystemInput(out rotation, out triggerValue))
+        {
+            _debugInputSource = "InputSystem";
+            return true;
+        }
+
+        _debugInputSource = "None";
+        rotation = Quaternion.identity;
+        triggerValue = 0f;
+        return false;
+    }
+
+    private bool TryGetRightControllerXRInput(out Quaternion rotation, out float triggerValue)
+    {
+        rotation = Quaternion.identity;
+        triggerValue = 0f;
+
+        if (!_rightHandXRDevice.isValid)
+        {
+            RefreshRightHandXRDevice();
+        }
+
+        if (!_rightHandXRDevice.isValid
+            || !_rightHandXRDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out rotation)
+            || !IsValidRotation(rotation))
+        {
+            RefreshRightHandXRDevice();
+        }
+
+        if (!_rightHandXRDevice.isValid
+            || !_rightHandXRDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.deviceRotation, out rotation)
+            || !IsValidRotation(rotation))
+        {
+            return false;
+        }
+
+        triggerValue = _rightHandXRDevice.TryGetFeatureValue(UnityEngine.XR.CommonUsages.trigger, out float trigger)
+            ? trigger
+            : 0f;
+        return true;
+    }
+
+    private void RefreshRightHandXRDevice()
+    {
+        _rightHandXRDevices.Clear();
+        UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
+            UnityEngine.XR.InputDeviceCharacteristics.Right
+            | UnityEngine.XR.InputDeviceCharacteristics.Controller,
+            _rightHandXRDevices);
+
+        _rightHandXRDevice = _rightHandXRDevices.Count > 0
+            ? _rightHandXRDevices[0]
+            : default;
+    }
+
+    private bool TryGetRightControllerInputSystemInput(out Quaternion rotation, out float triggerValue)
+    {
+        XRController rightController = GetRightHandController();
+        if (rightController == null || rightController.deviceRotation == null)
+        {
+            rotation = Quaternion.identity;
+            triggerValue = 0f;
+            return false;
+        }
+
+        rotation = rightController.deviceRotation.ReadValue();
+        if (!IsValidRotation(rotation))
+        {
+            triggerValue = 0f;
+            return false;
+        }
+
+        AxisControl trigger = rightController.TryGetChildControl<AxisControl>("trigger");
+        triggerValue = trigger != null ? trigger.ReadValue() : 0f;
+        return true;
     }
 
     private bool IsRightHandController(InputDevice device)
@@ -313,21 +385,58 @@ public class VRInputManager : MonoBehaviour
 
         Vector3 relativeForward = relativeRotation * Vector3.forward;
         Vector3 relativeRight = relativeRotation * Vector3.right;
+        Vector3 relativeEuler = relativeRotation.eulerAngles;
 
-        pitchInput = ApplyTiltIdleZone(Mathf.Clamp(relativeForward.y / maxTiltSin, -1f, 1f), idleTiltNormalized);
+        float pitchFromForward = Mathf.Clamp(relativeForward.y / maxTiltSin, -1f, 1f);
+        _debugPitchFromEulerX = Mathf.Clamp(NormalizeAngle(relativeEuler.x) / maxTilt, -1f, 1f);
+        float rawPitchInput = Mathf.Abs(_debugPitchFromEulerX) > Mathf.Abs(pitchFromForward)
+            ? _debugPitchFromEulerX
+            : pitchFromForward;
+        pitchInput = ApplyTiltIdleZone(rawPitchInput, idleTiltNormalized);
 
         float rollFromLocalZ = -relativeRight.y / maxTiltSin;
         float rollFromLocalY = relativeForward.x / maxTiltSin;
 
         _debugRollFromLocalZ = Mathf.Clamp(rollFromLocalZ, -1f, 1f);
         _debugRollFromLocalY = Mathf.Clamp(rollFromLocalY, -1f, 1f);
+        _debugRollFromEulerY = Mathf.Clamp(NormalizeAngle(relativeEuler.y) / maxTilt, -1f, 1f);
+        _debugRollFromEulerZ = Mathf.Clamp(NormalizeAngle(relativeEuler.z) / maxTilt, -1f, 1f);
 
-        // Different XR backends expose the physical controller tilt around different local axes.
-        // Use whichever candidate is actually moving so left/right hand tilt consistently rolls the jet.
-        float rawRollInput = Mathf.Abs(_debugRollFromLocalY) > Mathf.Abs(_debugRollFromLocalZ)
-            ? _debugRollFromLocalY
-            : _debugRollFromLocalZ;
+        float rawRollInput = PickLargestMagnitude(
+            _debugRollFromLocalZ,
+            _debugRollFromLocalY,
+            _debugRollFromEulerY,
+            _debugRollFromEulerZ);
         rollInput = ApplyTiltIdleZone(rawRollInput, idleTiltNormalized);
+    }
+
+    private float PickLargestMagnitude(params float[] values)
+    {
+        float result = 0f;
+        for (int i = 0; i < values.Length; i++)
+        {
+            if (Mathf.Abs(values[i]) > Mathf.Abs(result))
+            {
+                result = values[i];
+            }
+        }
+
+        return result;
+    }
+
+    private float NormalizeAngle(float angle)
+    {
+        angle %= 360f;
+        if (angle > 180f)
+        {
+            angle -= 360f;
+        }
+        else if (angle < -180f)
+        {
+            angle += 360f;
+        }
+
+        return angle;
     }
 
     private float ApplyTiltIdleZone(float value, float idleThreshold)
@@ -360,15 +469,17 @@ public class VRInputManager : MonoBehaviour
     {
         if (!Application.isEditor && !Debug.isDebugBuild) return;
 
-        GUILayout.BeginArea(new Rect(10, 10, 260, 160));
-        GUI.Box(new Rect(0, 0, 260, 160), "");
+        GUILayout.BeginArea(new Rect(10, 10, 300, 210));
+        GUI.Box(new Rect(0, 0, 300, 210), "");
         GUIStyle style = new GUIStyle(GUI.skin.label);
         style.fontSize = 13;
 
         GUILayout.Label($"[VRInputManager] Mode: {(useVR ? "VR" : "Mouse")}", style);
+        GUILayout.Label($"Input Src  : {_debugInputSource}", style);
         GUILayout.Label($"PitchInput : {PitchInput:F3}", style);
         GUILayout.Label($"RollInput  : {RollInput:F3}", style);
         GUILayout.Label($"Roll Z/Y   : {_debugRollFromLocalZ:F3} / {_debugRollFromLocalY:F3}", style);
+        GUILayout.Label($"Euler X/Y/Z: {_debugPitchFromEulerX:F3} / {_debugRollFromEulerY:F3} / {_debugRollFromEulerZ:F3}", style);
         GUILayout.Label($"Idle Tilt  : {vrIdleTiltAngle:F1} deg", style);
         GUILayout.Label($"Trigger    : {TriggerValue:F3}", style);
         GUILayout.Label(IsCursorLocked ? "Cursor: LOCKED (ESC to unlock)" : "Cursor: FREE (Click to lock)", style);
