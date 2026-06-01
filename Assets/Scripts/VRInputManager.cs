@@ -147,17 +147,25 @@ public class VRInputManager : MonoBehaviour
         // 마우스 델타 읽기 (새 Input System)
         Vector2 mouseDelta = Mouse.current.delta.ReadValue();
 
-        // 감도 적용 및 정규화 (256 픽셀 기준으로 -1 ~ 1 범위)
-        float targetPitch =  mouseDelta.y / 256f * mouseSensitivity;
-        float targetRoll  =  mouseDelta.x / 256f * mouseSensitivity;
+        float deltaTime = Time.deltaTime;
+        if (deltaTime > 0f)
+        {
+            // 프레임 레이트에 독립적인 초당 픽셀 이동 속도 계산
+            float mouseVelocityY = mouseDelta.y / deltaTime;
+            float mouseVelocityX = mouseDelta.x / deltaTime;
 
-        // -1 ~ 1 클램프
-        targetPitch = Mathf.Clamp(targetPitch, -1f, 1f);
-        targetRoll  = Mathf.Clamp(targetRoll,  -1f, 1f);
+            // 초당 1000픽셀 이동을 기준(1.0)으로 감도 적용
+            float targetPitch = mouseVelocityY / 1000f * mouseSensitivity;
+            float targetRoll  = mouseVelocityX / 1000f * mouseSensitivity;
 
-        // 스무딩
-        _rawPitch = Mathf.Lerp(_rawPitch, targetPitch, Time.deltaTime * inputSmoothing);
-        _rawRoll  = Mathf.Lerp(_rawRoll,  targetRoll,  Time.deltaTime * inputSmoothing);
+            // -1 ~ 1 클램프
+            targetPitch = Mathf.Clamp(targetPitch, -1f, 1f);
+            targetRoll  = Mathf.Clamp(targetRoll,  -1f, 1f);
+
+            // 스무딩
+            _rawPitch = Mathf.Lerp(_rawPitch, targetPitch, deltaTime * inputSmoothing);
+            _rawRoll  = Mathf.Lerp(_rawRoll,  targetRoll,  deltaTime * inputSmoothing);
+        }
 
         PitchInput = ApplyDeadzone(_rawPitch);
         RollInput  = ApplyDeadzone(_rawRoll);

@@ -24,7 +24,7 @@ public class PlayerRigSetup : MonoBehaviour
     // ──────────────────────────────────────────────
     //  Unity 생명주기
     // ──────────────────────────────────────────────
-    private void Awake()
+    private void Start()
     {
         SetupCameraPosition();
     }
