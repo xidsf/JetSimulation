@@ -578,26 +578,6 @@ MonoBehaviour:
   company: Unity
   priority: 0
   required: 0
---- !u!114 &-5604032471131250362
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b213d3e3c7f3109449eb46a4c8ee42f0, type: 3}
-  m_Name: XrPerformanceSettingsFeature WebGL
-  m_EditorClassIdentifier: 
-  m_enabled: 0
-  nameUi: XR Performance Settings
-  version: 1.0.0
-  featureIdInternal: com.unity.openxr.feature.extension.performance_settings
-  openxrExtensionStrings: XR_EXT_performance_settings
-  company: Unity
-  priority: 0
-  required: 0
 --- !u!114 &-5326602964445685901
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -897,46 +877,24 @@ MonoBehaviour:
   m_Name: Standalone
   m_EditorClassIdentifier: 
   features:
-  - {fileID: 8221564594354640495}
+  - {fileID: 1443452708213354362}
   - {fileID: -8749980634715080836}
-  - {fileID: 4893829345954421791}
+  - {fileID: -1276894210230670667}
   - {fileID: -4478006660784508864}
   - {fileID: -6081641041439107477}
   - {fileID: 32361891232910083}
-  - {fileID: 1727173055597128861}
+  - {fileID: -34596358968032513}
   - {fileID: -5941725581135416239}
   - {fileID: -4647824206626811188}
   - {fileID: -1028784285735575096}
-  - {fileID: 1507748248788215057}
-  - {fileID: 7413458854745118488}
+  - {fileID: -2513858183220632965}
+  - {fileID: 5447152813868908602}
   - {fileID: 4054846353496584751}
-  - {fileID: 154189092879288027}
+  - {fileID: -8895518590110429109}
   - {fileID: -4731438336562001402}
-  - {fileID: 4135229692886101830}
+  - {fileID: 2316775424616146661}
   - {fileID: -5611916350011621528}
   - {fileID: 239522605376452086}
-  m_renderMode: 1
-  m_autoColorSubmissionMode: 1
-  m_colorSubmissionModes:
-    m_List: 00000000
-  m_depthSubmissionMode: 0
-  m_spacewarpMotionVectorTextureFormat: 0
-  m_optimizeBufferDiscards: 0
-  m_symmetricProjection: 0
---- !u!114 &-2621667964125113875
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b5a1f07dc5afe854f9f12a4194aca3fb, type: 3}
-  m_Name: WebGL
-  m_EditorClassIdentifier: 
-  features:
-  - {fileID: -5604032471131250362}
   m_renderMode: 1
   m_autoColorSubmissionMode: 1
   m_colorSubmissionModes:
@@ -1247,13 +1205,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f0ebc320a151d3408ea1e9fce54d40e, type: 3}
   m_Name: Open XR Package Settings
   m_EditorClassIdentifier: 
-  Keys: 01000000070000000e000000040000000d000000
+  Keys: 01000000070000000e00000004000000
   Values:
   - {fileID: -3160651408743164439}
   - {fileID: -64324148185763206}
   - {fileID: 4257799398954384198}
   - {fileID: -9211917895290312687}
-  - {fileID: -2621667964125113875}
 --- !u!114 &32361891232910083
 MonoBehaviour:
   m_ObjectHideFlags: 0
