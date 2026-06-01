@@ -115,6 +115,12 @@ namespace JetSimulation.EnemySystem
                 mover.enabled = false;
             }
 
+            var controller = target.GetComponent<EnemyController>();
+            if (controller != null)
+            {
+                controller.enabled = false;
+            }
+
             if (disableCollidersOnDeath)
             {
                 foreach (var collider in target.GetComponentsInChildren<Collider>())
