@@ -1,3 +1,4 @@
+using JetSimulation.Core;
 using UnityEngine;
 
 namespace JetSimulation.EnemySystem
@@ -10,6 +11,13 @@ namespace JetSimulation.EnemySystem
         Right
     }
 
+    public enum EnemyPrefabGroup
+    {
+        Default,
+        A10,
+        Sr71
+    }
+
     [DisallowMultipleComponent]
     public sealed class EnemySpawner : MonoBehaviour
     {
@@ -17,7 +25,18 @@ namespace JetSimulation.EnemySystem
         [SerializeField] private Transform player;
         [SerializeField] private Camera playerCamera;
         [SerializeField] private EnemyController[] enemyPrefabs;
+        [SerializeField] private EnemyController[] a10EnemyPrefabs;
+        [SerializeField] private EnemyController[] sr71EnemyPrefabs;
         [SerializeField] private Transform enemyParent;
+
+        [Header("Boss")]
+        [SerializeField] private EnemyBossController bossPrefab;
+        [SerializeField] private bool enableBoss = true;
+        [SerializeField] private float bossSpawnDelay = 10f;
+
+        [Header("Score Unlocks")]
+        [SerializeField] private int a10UnlockScore = 1000;
+        [SerializeField] private int sr71UnlockScore = 3500;
 
         [Header("Activation")]
         [SerializeField] private float activationDistance = 650f;
@@ -46,12 +65,17 @@ namespace JetSimulation.EnemySystem
         [SerializeField] private float waveSpread = 7f;
 
         private float nextSpawnTime;
+        private float bossTimerStartTime;
         private bool hasSpawned;
+        private bool bossSpawnRequested;
+        private bool bossSpawned;
+        private bool missingBossPrefabLogged;
         private Quaternion fixedRotation;
 
         private void Awake()
         {
             fixedRotation = transform.rotation;
+            bossTimerStartTime = Time.time;
             ResolveReferences();
         }
 
@@ -69,7 +93,12 @@ namespace JetSimulation.EnemySystem
                 return;
             }
 
-            if (player == null || playerCamera == null || enemyPrefabs == null || enemyPrefabs.Length == 0)
+            if (TryUpdateBossPhase())
+            {
+                return;
+            }
+
+            if (player == null || playerCamera == null || !HasAnySpawnablePrefab())
             {
                 return;
             }
@@ -92,6 +121,88 @@ namespace JetSimulation.EnemySystem
             SpawnWave();
             hasSpawned = true;
             nextSpawnTime = Time.time + spawnInterval;
+        }
+
+        private bool TryUpdateBossPhase()
+        {
+            if (!enableBoss)
+            {
+                return false;
+            }
+
+            if (bossSpawned)
+            {
+                return true;
+            }
+
+            if (!bossSpawnRequested && Time.time - bossTimerStartTime >= bossSpawnDelay)
+            {
+                bossSpawnRequested = true;
+                Debug.Log("[EnemySystem] Boss time reached. Normal enemy spawning stopped.");
+            }
+
+            if (!bossSpawnRequested)
+            {
+                return false;
+            }
+
+            if (!HasLivingNormalEnemies())
+            {
+                SpawnBoss();
+            }
+
+            return true;
+        }
+
+        private void SpawnBoss()
+        {
+            if (bossSpawned)
+            {
+                return;
+            }
+
+            if (player == null)
+            {
+                ResolveReferences();
+            }
+
+            if (bossPrefab == null)
+            {
+                if (!missingBossPrefabLogged)
+                {
+                    Debug.LogWarning("[EnemySystem] Boss spawn requested, but Boss Prefab is not assigned on EnemySpawner.");
+                    missingBossPrefabLogged = true;
+                }
+
+                return;
+            }
+
+            var moveDirection = Vector3.back;
+            var boss = Instantiate(bossPrefab, transform.position, Quaternion.LookRotation(moveDirection, Vector3.up), enemyParent);
+            boss.Initialize(player, transform.position, moveDirection);
+            bossSpawned = true;
+            Debug.Log("[EnemySystem] Boss battle started.");
+        }
+
+        private static bool HasLivingNormalEnemies()
+        {
+            for (var i = 0; i < EnemyHealth.ActiveEnemies.Count; i++)
+            {
+                var enemy = EnemyHealth.ActiveEnemies[i];
+                if (enemy == null || !enemy.IsAlive)
+                {
+                    continue;
+                }
+
+                if (enemy.GetComponent<EnemyBossController>() != null)
+                {
+                    continue;
+                }
+
+                return true;
+            }
+
+            return false;
         }
 
         private void LateUpdate()
@@ -120,7 +231,7 @@ namespace JetSimulation.EnemySystem
 
         private void SpawnEnemy(int index, int count)
         {
-            var prefab = enemyPrefabs[Random.Range(0, enemyPrefabs.Length)];
+            var prefab = ChooseEnemyPrefab();
             if (prefab == null)
             {
                 return;
@@ -139,9 +250,194 @@ namespace JetSimulation.EnemySystem
             enemy.SetDespawnReference(player, despawnBehindPlayerDistance);
         }
 
+        private EnemyController ChooseEnemyPrefab()
+        {
+            var currentScore = GetCurrentScore();
+            var eligibleCount = CountEligiblePrefabs(currentScore);
+
+            if (eligibleCount <= 0)
+            {
+                return null;
+            }
+
+            var pickIndex = Random.Range(0, eligibleCount);
+            var selectedPrefab = PickPrefabByGroup(enemyPrefabs, EnemyPrefabGroup.Default, ref pickIndex);
+            if (selectedPrefab != null)
+            {
+                return selectedPrefab;
+            }
+
+            if (currentScore >= a10UnlockScore)
+            {
+                selectedPrefab = PickPrefabByGroup(enemyPrefabs, EnemyPrefabGroup.A10, ref pickIndex);
+                if (selectedPrefab != null)
+                {
+                    return selectedPrefab;
+                }
+
+                selectedPrefab = PickValidPrefab(a10EnemyPrefabs, ref pickIndex);
+                if (selectedPrefab != null)
+                {
+                    return selectedPrefab;
+                }
+            }
+
+            if (currentScore >= sr71UnlockScore)
+            {
+                selectedPrefab = PickPrefabByGroup(enemyPrefabs, EnemyPrefabGroup.Sr71, ref pickIndex);
+                if (selectedPrefab != null)
+                {
+                    return selectedPrefab;
+                }
+
+                return PickValidPrefab(sr71EnemyPrefabs, ref pickIndex);
+            }
+
+            return null;
+        }
+
         private ScreenSpawnSide ResolveSpawnSide()
         {
             return (ScreenSpawnSide)Random.Range((int)ScreenSpawnSide.Top, (int)ScreenSpawnSide.Right + 1);
+        }
+
+        private bool HasAnySpawnablePrefab()
+        {
+            return CountEligiblePrefabs(GetCurrentScore()) > 0;
+        }
+
+        private int CountEligiblePrefabs(int currentScore)
+        {
+            var count = CountPrefabsByGroup(enemyPrefabs, EnemyPrefabGroup.Default);
+
+            if (currentScore >= a10UnlockScore)
+            {
+                count += CountPrefabsByGroup(enemyPrefabs, EnemyPrefabGroup.A10);
+                count += CountValidPrefabs(a10EnemyPrefabs);
+            }
+
+            if (currentScore >= sr71UnlockScore)
+            {
+                count += CountPrefabsByGroup(enemyPrefabs, EnemyPrefabGroup.Sr71);
+                count += CountValidPrefabs(sr71EnemyPrefabs);
+            }
+
+            return count;
+        }
+
+        private static int GetCurrentScore()
+        {
+            var gameManagerScore = GameManager.Instance != null ? GameManager.Instance.CurrentScore : 0;
+            return Mathf.Max(gameManagerScore, EnemyHealth.LocalDebugScore);
+        }
+
+        private static int CountValidPrefabs(EnemyController[] prefabs)
+        {
+            if (prefabs == null)
+            {
+                return 0;
+            }
+
+            var count = 0;
+            for (var i = 0; i < prefabs.Length; i++)
+            {
+                if (prefabs[i] != null)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private static int CountPrefabsByGroup(EnemyController[] prefabs, EnemyPrefabGroup group)
+        {
+            if (prefabs == null)
+            {
+                return 0;
+            }
+
+            var count = 0;
+            for (var i = 0; i < prefabs.Length; i++)
+            {
+                if (prefabs[i] != null && GetPrefabGroup(prefabs[i]) == group)
+                {
+                    count++;
+                }
+            }
+
+            return count;
+        }
+
+        private static EnemyController PickValidPrefab(EnemyController[] prefabs, ref int pickIndex)
+        {
+            if (prefabs == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < prefabs.Length; i++)
+            {
+                if (prefabs[i] == null)
+                {
+                    continue;
+                }
+
+                if (pickIndex == 0)
+                {
+                    return prefabs[i];
+                }
+
+                pickIndex--;
+            }
+
+            return null;
+        }
+
+        private static EnemyController PickPrefabByGroup(EnemyController[] prefabs, EnemyPrefabGroup group, ref int pickIndex)
+        {
+            if (prefabs == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < prefabs.Length; i++)
+            {
+                if (prefabs[i] == null || GetPrefabGroup(prefabs[i]) != group)
+                {
+                    continue;
+                }
+
+                if (pickIndex == 0)
+                {
+                    return prefabs[i];
+                }
+
+                pickIndex--;
+            }
+
+            return null;
+        }
+
+        private static EnemyPrefabGroup GetPrefabGroup(EnemyController prefab)
+        {
+            if (prefab == null)
+            {
+                return EnemyPrefabGroup.Default;
+            }
+
+            var prefabName = prefab.name.ToUpperInvariant();
+            if (prefabName.Contains("A10") || prefabName.Contains("A-10") || prefabName.Contains("A_10"))
+            {
+                return EnemyPrefabGroup.A10;
+            }
+
+            if (prefabName.Contains("SR71") || prefabName.Contains("SR-71") || prefabName.Contains("SR_71"))
+            {
+                return EnemyPrefabGroup.Sr71;
+            }
+
+            return EnemyPrefabGroup.Default;
         }
 
         private void GetEntryPath(ScreenSpawnSide side, out Vector3 spawnPosition, out Vector3 entryTargetPosition)
