@@ -1,4 +1,5 @@
 using HomingMissile;
+using JetSimulation.EnemySystem;
 using UnityEngine;
 
 namespace JetSimulation.Combat
@@ -57,9 +58,7 @@ namespace JetSimulation.Combat
             if (IsOwner(hitObject))
                 return;
 
-            var receiver = FindDamageReceiver(hitObject);
-            if (receiver != null)
-                receiver.TakeDamage(damage, owner != null ? owner : gameObject);
+            DealDamage(hitObject);
 
             DestroyProjectile();
         }
@@ -74,19 +73,31 @@ namespace JetSimulation.Combat
                    owner.transform.IsChildOf(hitObject.transform);
         }
 
-        static IAttackDamageReceiver FindDamageReceiver(GameObject hitObject)
+        void DealDamage(GameObject hitObject)
         {
             if (hitObject == null)
-                return null;
+                return;
+
+            var source = owner != null ? owner : gameObject;
 
             var behaviours = hitObject.GetComponentsInParent<MonoBehaviour>();
             for (var i = 0; i < behaviours.Length; i++)
             {
-                if (behaviours[i] is IAttackDamageReceiver receiver)
-                    return receiver;
+                if (behaviours[i] is Damageable damageable)
+                {
+                    damageable.TakeDamage(damage, source);
+                    return;
+                }
             }
 
-            return null;
+            for (var i = 0; i < behaviours.Length; i++)
+            {
+                if (behaviours[i] is IAttackDamageReceiver receiver)
+                {
+                    receiver.TakeDamage(damage, source);
+                    return;
+                }
+            }
         }
 
         void DestroyProjectile()

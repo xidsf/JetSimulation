@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 7541678506397845873}
   - component: {fileID: 4764609233304647765}
   - component: {fileID: 3442132375796182240}
-  m_Layer: 0
+  m_Layer: 10
   m_Name: Enemy_AH64
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -95,6 +95,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   health: {fileID: 4609728598439726035}
   mover: {fileID: 2303512055828328476}
+  movementPattern: 0
+  speed: 35
+  maxTravelDistance: 220
+  horizontalAmplitude: 8
+  horizontalMoveInterval: 2
+  horizontalBankAngle: 25
+  verticalAmplitude: 3
+  verticalMoveInterval: 2
+  maxPatternTurnAngle: 18
+  despawnBehindReferenceDistance: 200
+  rotateToMoveDirection: 1
+  modelRotationOffset: {x: 0, y: 0, z: 0}
 --- !u!54 &4764609233304647765
 Rigidbody:
   m_ObjectHideFlags: 0

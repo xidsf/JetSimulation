@@ -1,4 +1,5 @@
 using HomingMissile;
+using JetSimulation.EnemySystem;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.InputSystem;
@@ -52,7 +53,7 @@ namespace JetSimulation.Combat
         [SerializeField] float lockOnMaxDistance = 150f;
         [SerializeField, Range(1f, 90f)] float lockOnAngle = 20f;
         [SerializeField] LayerMask lockOnLayers = ~0;
-        [SerializeField] bool requireDamageReceiver = true;
+        [SerializeField, InspectorName("Require Damageable Target")] bool requireDamageReceiver = true;
         [SerializeField] Transform lockOnReferencePoint;
         [FormerlySerializedAs("targetingCamera")]
         [SerializeField, InspectorName("Player View Camera")] Camera playerViewCamera;
@@ -414,6 +415,12 @@ namespace JetSimulation.Combat
                 return candidate.attachedRigidbody != null ? candidate.attachedRigidbody.transform : candidate.transform;
 
             var behaviours = candidate.GetComponentsInParent<MonoBehaviour>();
+            for (var i = 0; i < behaviours.Length; i++)
+            {
+                if (behaviours[i] is Damageable)
+                    return behaviours[i].transform;
+            }
+
             for (var i = 0; i < behaviours.Length; i++)
             {
                 if (behaviours[i] is IAttackDamageReceiver)
