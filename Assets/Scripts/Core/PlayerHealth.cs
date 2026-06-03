@@ -28,22 +28,21 @@ namespace JetSimulation.Core
         /// </summary>
         public void TakeDamage(float amount, GameObject source)
         {
-            // 이미 죽었거나 데미지가 비정상적이면 무시
             if (IsDead || amount <= 0f) return;
+
+            // 핵심 수정: 오버킬(9999 대미지)이 들어와도 내 현재 체력 이상으로는 페널티를 받지 않음
+            float actualDamage = Mathf.Min(amount, currentHealth);
 
             currentHealth -= amount;
             if (currentHealth < 0f) currentHealth = 0f;
 
-            // 1. 실시간 HUD 체력 바 최신화를 위한 이벤트 발생
             OnHealthChanged?.Invoke(currentHealth / maxHealth);
-
-            // 2. CameraEffectManager가 수신하여 화면을 붉게 번쩍이게 만드는 피격 이벤트 발생
             OnTookDamage?.Invoke();
 
-            // 3. 피격 시 점수가 깎이는 기획 반영 (필요 시 수치 조정)
             if (GameManager.Instance != null)
             {
-                GameManager.Instance.DeductScoreForDamage(Mathf.RoundToInt(amount * 2));
+                // 실제 깎인 체력 비례로만 점수 차감 (즉사해도 최대 200점만 깎임)
+                GameManager.Instance.DeductScoreForDamage(Mathf.RoundToInt(actualDamage * 2));
             }
 
             Debug.Log($"[Player] 피격! 대미지: {amount} | 남은 체력: {currentHealth}");

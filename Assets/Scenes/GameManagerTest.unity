@@ -155,14 +155,14 @@ RectTransform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 172898879}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 1.51}
   m_LocalScale: {x: 0.001, y: 0.001, z: 0.001}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1303954450}
   - {fileID: 800109374}
   - {fileID: 1617269644}
-  m_Father: {fileID: 302290670}
+  m_Father: {fileID: 546702530}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
@@ -176,7 +176,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 172898879}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0f1e010b8d35a5941b0153fc0d092a1c, type: 3}
   m_Name: 
@@ -373,7 +373,6 @@ Transform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 172898880}
   - {fileID: 1895472204}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -1499,22 +1498,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   firePoint: {fileID: 546702530}
   aimCamera: {fileID: 546702534}
-  missilePrefab: {fileID: 4546223944443758364, guid: 727343c213b9634419f9f4935923c04e, type: 3}
-  missileKey: 113
   bulletDamage: 1
   bulletSpeed: 160
   bulletLifetime: 3
   bulletCooldown: 0.08
   bulletHitRadius: 0.06
   bulletScale: {x: 1, y: 1, z: 1}
-  missileDamage: 10
-  missileSpeed: 90
-  missileLifetime: 6
-  missileCooldown: 0.6
-  missileHitRadius: 0.25
-  missileScale: {x: 1, y: 1, z: 1}
-  missileRotationOffset: {x: 0, y: 0, z: 0}
-  missileHomingTurnSpeed: 180
   muzzleForwardOffset: 2
   muzzleUpOffset: 0.3
 --- !u!4 &1267299368
@@ -2827,7 +2816,10 @@ PrefabInstance:
       objectReference: {fileID: 546702534}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
-    m_AddedGameObjects: []
+    m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 5479367391997729140, guid: 241086cdcdd16a141a7d6cc0914b72cc, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 172898880}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 241086cdcdd16a141a7d6cc0914b72cc, type: 3}
 --- !u!1660057539 &9223372036854775807
