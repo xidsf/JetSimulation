@@ -4,7 +4,6 @@ namespace JetSimulation.EnemySystem
 {
     public enum ScreenSpawnSide
     {
-        Random,
         Top,
         Bottom,
         Left,
@@ -21,59 +20,54 @@ namespace JetSimulation.EnemySystem
         [SerializeField] private Transform enemyParent;
 
         [Header("Activation")]
-        [SerializeField] private float activationDistance = 120f;
+        [SerializeField] private float activationDistance = 650f;
         [SerializeField] private bool spawnOnlyOnce = false;
         [SerializeField] private bool startActive = true;
 
+        [Header("Follow")]
+        [SerializeField] private bool followPlayerPosition = true;
+        [SerializeField] private float followDistanceFromPlayer = 600f;
+        [SerializeField] private Vector3 followOffset = Vector3.zero;
+
         [Header("Spawn")]
-        [SerializeField] private ScreenSpawnSide spawnSide = ScreenSpawnSide.Random;
-        [SerializeField] private float spawnDistanceFromCamera = 85f;
-        [SerializeField] private float viewportOverscan = 0.08f;
+        [SerializeField] private float spawnBoxDepth = 80f;
+        [SerializeField] private float spawnBoxWidth = 500f;
+        [SerializeField] private float parabolicEntryForwardDistance = 550f;
+        [SerializeField] private float sideEntryOffset = 14f;
+        [SerializeField] private float verticalScreenOffset = 18f;
         [SerializeField] private float spawnHeight = 50f;
-        [SerializeField] private bool useFixedFlightHeight = true;
-        [SerializeField] private float flightHeight = 10f;
+        [SerializeField] private float entryHeightRangeFromPlayer = 100f;
         [SerializeField] private float heightJitter = 0f;
+        [SerializeField] private float entryArcHeight = 25f;
+        [SerializeField] private float entryDuration = 1.5f;
+        [SerializeField] private float despawnBehindPlayerDistance = 200f;
         [SerializeField] private float spawnInterval = 2.5f;
         [SerializeField] private int enemiesPerWave = 1;
         [SerializeField] private float waveSpread = 7f;
 
-        [Header("Movement")]
-        [SerializeField] private float enemySpeed = 35f;
-        [SerializeField] private float maxTravelDistance = 220f;
-        [SerializeField] private bool moveHorizontallyOnly = true;
-        [SerializeField] private bool descendBeforeForward = true;
-        [SerializeField] private float descentSpeed = 25f;
-
         private float nextSpawnTime;
         private bool hasSpawned;
-        private Vector3 lastPlayerPosition;
-        private Vector3 fallbackDirection = Vector3.forward;
+        private Quaternion fixedRotation;
 
         private void Awake()
         {
+            fixedRotation = transform.rotation;
             ResolveReferences();
-
-            if (player != null)
-            {
-                lastPlayerPosition = player.position;
-                fallbackDirection = player.forward.sqrMagnitude > 0.001f ? player.forward.normalized : Vector3.forward;
-            }
         }
 
         private void Update()
         {
-            if (!startActive)
-            {
-                TrackPlayerDirection();
-                return;
-            }
-
             if (player == null || playerCamera == null)
             {
                 ResolveReferences();
             }
 
-            TrackPlayerDirection();
+            FollowPlayerWithoutRotation();
+
+            if (!startActive)
+            {
+                return;
+            }
 
             if (player == null || playerCamera == null || enemyPrefabs == null || enemyPrefabs.Length == 0)
             {
@@ -85,7 +79,7 @@ namespace JetSimulation.EnemySystem
                 return;
             }
 
-            if (Vector3.Distance(player.position, transform.position) > activationDistance)
+            if (!followPlayerPosition && Vector3.Distance(player.position, transform.position) > activationDistance)
             {
                 return;
             }
@@ -98,6 +92,16 @@ namespace JetSimulation.EnemySystem
             SpawnWave();
             hasSpawned = true;
             nextSpawnTime = Time.time + spawnInterval;
+        }
+
+        private void LateUpdate()
+        {
+            if (player == null || playerCamera == null)
+            {
+                ResolveReferences();
+            }
+
+            FollowPlayerWithoutRotation();
         }
 
         public void SetActive(bool active)
@@ -123,55 +127,65 @@ namespace JetSimulation.EnemySystem
             }
 
             var side = ResolveSpawnSide();
-            var spawnPosition = GetViewportSpawnPosition(side);
-            spawnPosition += GetWaveOffset(index, count);
-            spawnPosition = ApplySpawnHeight(spawnPosition);
+            GetEntryPath(side, out var spawnPosition, out var entryTargetPosition);
 
-            var moveDirection = GetEnemyMoveDirection();
+            spawnPosition += GetWaveOffset(index, count);
+            entryTargetPosition += GetWaveOffset(index, count);
+
+            var moveDirection = Vector3.back;
             var rotation = Quaternion.LookRotation(moveDirection, Vector3.up);
             var enemy = Instantiate(prefab, spawnPosition, rotation, enemyParent);
-            enemy.Initialize(
-                moveDirection,
-                enemySpeed,
-                maxTravelDistance,
-                useFixedFlightHeight,
-                flightHeight,
-                descendBeforeForward,
-                descentSpeed);
+            enemy.Initialize(spawnPosition, entryTargetPosition, moveDirection, entryDuration, entryArcHeight);
+            enemy.SetDespawnReference(player, despawnBehindPlayerDistance);
         }
 
         private ScreenSpawnSide ResolveSpawnSide()
         {
-            if (spawnSide != ScreenSpawnSide.Random)
-            {
-                return spawnSide;
-            }
-
             return (ScreenSpawnSide)Random.Range((int)ScreenSpawnSide.Top, (int)ScreenSpawnSide.Right + 1);
         }
 
-        private Vector3 GetViewportSpawnPosition(ScreenSpawnSide side)
+        private void GetEntryPath(ScreenSpawnSide side, out Vector3 spawnPosition, out Vector3 entryTargetPosition)
         {
-            var x = Random.Range(0.2f, 0.8f);
-            var y = Random.Range(0.2f, 0.8f);
+            var center = transform.position;
+            var playerCenter = player != null ? player.position : transform.position - Vector3.forward * followDistanceFromPlayer;
+            var spawnHalfWidth = GetSpawnBoxHalfWidth();
+            var spawnLateralOffset = Random.Range(-spawnHalfWidth, spawnHalfWidth);
+            var entryLateralOffset = Random.Range(-sideEntryOffset, sideEntryOffset);
+            var heightOffset = Random.Range(-heightJitter, heightJitter);
+            var depthOffset = Random.Range(-spawnBoxDepth * 0.5f, spawnBoxDepth * 0.5f);
+            var targetHeight = GetRandomEntryHeight(playerCenter.y, heightOffset);
+
+            var spawnX = center.x + spawnLateralOffset;
+            var entryX = center.x + entryLateralOffset;
+            var spawnY = playerCenter.y + spawnHeight + heightOffset;
+            var entryY = targetHeight;
+            var spawnZ = center.z + depthOffset;
+            var entryZ = playerCenter.z + parabolicEntryForwardDistance;
 
             switch (side)
             {
                 case ScreenSpawnSide.Top:
-                    y = 1f + viewportOverscan;
+                    spawnY = playerCenter.y + spawnHeight + Mathf.Abs(verticalScreenOffset) + heightOffset;
+                    entryY = targetHeight;
                     break;
                 case ScreenSpawnSide.Bottom:
-                    y = -viewportOverscan;
+                    spawnY = playerCenter.y + Mathf.Max(1f, spawnHeight - Mathf.Abs(verticalScreenOffset)) + heightOffset;
+                    entryY = targetHeight;
                     break;
                 case ScreenSpawnSide.Left:
-                    x = -viewportOverscan;
+                    spawnX = center.x - spawnHalfWidth;
+                    entryX = center.x - sideEntryOffset;
+                    spawnY = playerCenter.y + spawnHeight + heightOffset;
                     break;
                 case ScreenSpawnSide.Right:
-                    x = 1f + viewportOverscan;
+                    spawnX = center.x + spawnHalfWidth;
+                    entryX = center.x + sideEntryOffset;
+                    spawnY = playerCenter.y + spawnHeight + heightOffset;
                     break;
             }
 
-            return playerCamera.ViewportToWorldPoint(new Vector3(x, y, spawnDistanceFromCamera));
+            spawnPosition = new Vector3(spawnX, spawnY, spawnZ);
+            entryTargetPosition = new Vector3(entryX, entryY, entryZ);
         }
 
         private Vector3 GetWaveOffset(int index, int count)
@@ -185,69 +199,16 @@ namespace JetSimulation.EnemySystem
             return playerCamera.transform.right * centeredIndex * waveSpread;
         }
 
-        private Vector3 ApplySpawnHeight(Vector3 position)
+        private void FollowPlayerWithoutRotation()
         {
-            if (!useFixedFlightHeight)
-            {
-                position.y += Random.Range(-heightJitter, heightJitter);
-                return position;
-            }
+            transform.rotation = fixedRotation;
 
-            position.y = spawnHeight + Random.Range(-heightJitter, heightJitter);
-            return position;
-        }
-
-        private void TrackPlayerDirection()
-        {
-            if (player == null)
+            if (!followPlayerPosition || player == null)
             {
                 return;
             }
 
-            var delta = player.position - lastPlayerPosition;
-            if (delta.sqrMagnitude > 0.01f)
-            {
-                fallbackDirection = delta.normalized;
-            }
-            else if (player.forward.sqrMagnitude > 0.001f)
-            {
-                fallbackDirection = player.forward.normalized;
-            }
-
-            lastPlayerPosition = player.position;
-        }
-
-        private Vector3 GetPlayerMoveDirection()
-        {
-            if (fallbackDirection.sqrMagnitude < 0.001f)
-            {
-                return Vector3.forward;
-            }
-
-            return fallbackDirection.normalized;
-        }
-
-        private Vector3 GetEnemyMoveDirection()
-        {
-            var direction = GetPlayerMoveDirection() * -1f;
-
-            if (moveHorizontallyOnly)
-            {
-                direction.y = 0f;
-            }
-
-            if (direction.sqrMagnitude < 0.001f)
-            {
-                direction = playerCamera != null ? playerCamera.transform.forward * -1f : Vector3.back;
-                direction.y = 0f;
-            }
-
-            if (direction.sqrMagnitude < 0.001f)
-            {
-                direction = Vector3.back;
-            }
-
-            return direction.normalized;
+            transform.position = player.position + Vector3.forward * followDistanceFromPlayer + followOffset;
         }
 
         private void ResolveReferences()
@@ -255,6 +216,19 @@ namespace JetSimulation.EnemySystem
             if (playerCamera == null)
             {
                 playerCamera = Camera.main;
+                if (playerCamera == null)
+                {
+                    playerCamera = FindFirstObjectByType<Camera>();
+                }
+            }
+
+            if (player == null)
+            {
+                var playerObject = GameObject.FindGameObjectWithTag("Player");
+                if (playerObject != null)
+                {
+                    player = playerObject.transform;
+                }
             }
 
             if (player == null && playerCamera != null)
@@ -266,7 +240,30 @@ namespace JetSimulation.EnemySystem
         private void OnDrawGizmosSelected()
         {
             Gizmos.color = new Color(1f, 0.7f, 0.1f, 0.35f);
-            Gizmos.DrawWireSphere(transform.position, activationDistance);
+            DrawSpawnBoxGizmo();
+        }
+
+        private void DrawSpawnBoxGizmo()
+        {
+            var minY = -Mathf.Abs(entryHeightRangeFromPlayer) - Mathf.Abs(heightJitter);
+            var maxY = spawnHeight + Mathf.Abs(verticalScreenOffset) + Mathf.Abs(entryHeightRangeFromPlayer) + Mathf.Abs(heightJitter);
+            var minZ = Mathf.Min(parabolicEntryForwardDistance - followDistanceFromPlayer, -spawnBoxDepth * 0.5f);
+            var maxZ = spawnBoxDepth * 0.5f;
+            var size = new Vector3(Mathf.Max(1f, spawnBoxWidth), Mathf.Max(1f, maxY - minY), Mathf.Max(1f, maxZ - minZ));
+            var center = transform.position + new Vector3(0f, (minY + maxY) * 0.5f, (minZ + maxZ) * 0.5f);
+
+            Gizmos.DrawWireCube(center, size);
+        }
+
+        private float GetSpawnBoxHalfWidth()
+        {
+            return Mathf.Max(0.5f, spawnBoxWidth * 0.5f);
+        }
+
+        private float GetRandomEntryHeight(float playerHeight, float heightOffset)
+        {
+            var range = Mathf.Abs(entryHeightRangeFromPlayer);
+            return playerHeight + Random.Range(-range, range) + heightOffset;
         }
     }
 }

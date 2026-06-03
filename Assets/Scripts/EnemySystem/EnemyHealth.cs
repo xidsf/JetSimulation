@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using JetSimulation.Core;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -17,11 +18,14 @@ namespace JetSimulation.EnemySystem
         [SerializeField] private float crashRollSpeed = 120f;
         [SerializeField] private bool disableCollidersOnDeath = true;
         [SerializeField] private float destroyEffectLifetime = 5f;
+        [SerializeField] private int scoreOnDestroy = 100;
 
         public UnityEvent<float, float> damaged;
         public UnityEvent destroyed;
 
         public static readonly List<EnemyHealth> ActiveEnemies = new List<EnemyHealth>();
+
+        private static int localDebugScore;
 
         private float currentHealth;
         private bool isDestroyed;
@@ -85,6 +89,7 @@ namespace JetSimulation.EnemySystem
 
             isDestroyed = true;
             destroyed?.Invoke();
+            AddKillScore();
 
             if (destroyEffectPrefab != null)
             {
@@ -115,6 +120,12 @@ namespace JetSimulation.EnemySystem
                 mover.enabled = false;
             }
 
+            var controller = target.GetComponent<EnemyController>();
+            if (controller != null)
+            {
+                controller.enabled = false;
+            }
+
             if (disableCollidersOnDeath)
             {
                 foreach (var collider in target.GetComponentsInChildren<Collider>())
@@ -135,6 +146,34 @@ namespace JetSimulation.EnemySystem
             {
                 Destroy(target);
             }
+        }
+
+        private void AddKillScore()
+        {
+            if (scoreOnDestroy <= 0)
+            {
+                Debug.Log("[EnemySystem] Enemy destroyed, but scoreOnDestroy is 0 or lower.");
+                return;
+            }
+
+            if (GameManager.Instance == null)
+            {
+                localDebugScore += scoreOnDestroy;
+                Debug.Log($"[EnemySystem] Enemy destroyed. GameManager not found. Local debug score: {localDebugScore}");
+                return;
+            }
+
+            var previousScore = GameManager.Instance.CurrentScore;
+            GameManager.Instance.AddScoreForKill(scoreOnDestroy);
+
+            var currentScore = GameManager.Instance.CurrentScore;
+            if (currentScore == previousScore)
+            {
+                Debug.Log($"[EnemySystem] Enemy destroyed. Requested +{scoreOnDestroy}, but GameManager score stayed {currentScore}. Score system may be inactive.");
+                return;
+            }
+
+            Debug.Log($"[EnemySystem] Enemy destroyed. Score: {previousScore} -> {currentScore}");
         }
     }
 }
