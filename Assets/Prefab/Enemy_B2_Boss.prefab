@@ -80,14 +80,11 @@ MonoBehaviour:
   player: {fileID: 0}
   firePoint: {fileID: 0}
   normalEnemySpeed: 35
-  entryDistance: 50
+  hoverDistanceFromPlayer: 400
   entrySpeedMultiplier: 3
-  cruiseSpeedMultiplier: 0.5
   rotationLerpSpeed: 4
   laserRange: 900
-  laserWidth: 0.18
   laserHitRadius: 6
-  laserColor: {r: 1, g: 0, b: 0, a: 1}
   missileCooldown: 2
   missileSpeed: 130
   missileDamage: 15
