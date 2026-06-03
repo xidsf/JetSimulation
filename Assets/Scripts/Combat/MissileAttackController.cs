@@ -2,6 +2,8 @@ using HomingMissile;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.InputSystem;
+using UnityEngine.Serialization;
+using UnityEngine.UI;
 
 namespace JetSimulation.Combat
 {
@@ -32,6 +34,18 @@ namespace JetSimulation.Combat
         [SerializeField] float projectileLifeTime = 8f;
         [SerializeField] float temporaryTargetDistance = 120f;
 
+        [Header("Targeting View")]
+        [FormerlySerializedAs("lockOnViewCamera")]
+        [FormerlySerializedAs("weaponAimCamera")]
+        [SerializeField, InspectorName("Targeting Camera")] Camera targetingViewCamera;
+        [FormerlySerializedAs("requireTargetInsideLockOnCameraView")]
+        [FormerlySerializedAs("requireTargetInsideWeaponAimView")]
+        [SerializeField] bool requireTargetInsideTargetingView = true;
+        [FormerlySerializedAs("showWeaponAimArea")]
+        [SerializeField] bool showTargetingArea = true;
+        [FormerlySerializedAs("weaponAimAreaUI")]
+        [SerializeField, InspectorName("Targeting Area UI")] WeaponAimAreaUI targetingAreaUI;
+
         [Header("Lock On")]
         [SerializeField] bool requireLockOn = true;
         [SerializeField] float lockOnTime = 1.5f;
@@ -39,9 +53,9 @@ namespace JetSimulation.Combat
         [SerializeField, Range(1f, 90f)] float lockOnAngle = 20f;
         [SerializeField] LayerMask lockOnLayers = ~0;
         [SerializeField] bool requireDamageReceiver = true;
-        [SerializeField] bool useTargetingCameraForLockOn = true;
         [SerializeField] Transform lockOnReferencePoint;
-        [SerializeField] Camera targetingCamera;
+        [FormerlySerializedAs("targetingCamera")]
+        [SerializeField, InspectorName("Player View Camera")] Camera playerViewCamera;
         [SerializeField] MissileLockOnReticleUI lockOnReticle;
         [SerializeField, Min(1f)] float lockOnInitialReticleSize = 220f;
         [SerializeField, Min(0f)] float lockOnFireDelay = 1f;
@@ -78,6 +92,8 @@ namespace JetSimulation.Combat
         public GameObject LastFiredMissile { get; private set; }
         public Transform CurrentLockOnTarget => currentLockOnTarget;
         public float LockOnProgress => lockOnTime <= 0f ? 1f : Mathf.Clamp01(lockOnTimer / lockOnTime);
+        public Camera TargetingCamera => targetingViewCamera;
+        public Camera PlayerViewCamera => GetPlayerViewCamera();
 
         void Awake()
         {
@@ -87,7 +103,14 @@ namespace JetSimulation.Combat
             if (requireLockOn && lockOnReticle == null)
                 lockOnReticle = gameObject.AddComponent<MissileLockOnReticleUI>();
 
+            if (targetingAreaUI == null)
+                targetingAreaUI = GetComponent<WeaponAimAreaUI>();
+
+            if (showTargetingArea && targetingAreaUI == null)
+                targetingAreaUI = gameObject.AddComponent<WeaponAimAreaUI>();
+
             ApplyLockOnReticleSettings();
+            UpdateTargetingArea();
         }
 
         public void SetAttackEnabled(bool enabled)
@@ -143,11 +166,15 @@ namespace JetSimulation.Combat
             fireAction?.action?.Disable();
             wasTriggerPressed = false;
             fireInputConsumed = false;
+            if (targetingAreaUI != null)
+                targetingAreaUI.Hide();
             ResetLockOn();
         }
 
         void Update()
         {
+            UpdateTargetingArea();
+
             var action = fireAction != null ? fireAction.action : null;
             if (action == null)
                 return;
@@ -233,7 +260,7 @@ namespace JetSimulation.Combat
             lockOnTimer += Time.deltaTime;
             var progress = LockOnProgress;
             if (lockOnReticle != null)
-                lockOnReticle.Show(currentLockOnTarget, progress, progress >= 1f, GetTargetingCamera());
+                lockOnReticle.Show(currentLockOnTarget, progress, progress >= 1f, GetPlayerViewCamera());
 
             if (progress < 1f || firedDuringCurrentHold)
             {
@@ -253,7 +280,7 @@ namespace JetSimulation.Combat
                 queuedNextLockAfterPendingFire = true;
 
             if (lockOnReticle != null && pendingFireTarget != null)
-                lockOnReticle.Show(pendingFireTarget, 1f, true, GetTargetingCamera());
+                lockOnReticle.Show(pendingFireTarget, 1f, true, GetPlayerViewCamera());
 
             if (!attackEnabled)
                 return;
@@ -318,6 +345,9 @@ namespace JetSimulation.Combat
             if (distance <= Mathf.Epsilon || distance > lockOnMaxDistance)
                 return false;
 
+            if (UseTargetingCameraView())
+                return IsInsideTargetingView(target);
+
             var minDot = Mathf.Cos(lockOnAngle * Mathf.Deg2Rad);
             var dot = Vector3.Dot(referencePoint.forward, toTarget / distance);
             return dot >= minDot;
@@ -328,15 +358,16 @@ namespace JetSimulation.Combat
             var origin = launchPoint.position;
             var forward = launchPoint.forward;
             var minDot = Mathf.Cos(lockOnAngle * Mathf.Deg2Rad);
+            var useTargetingCameraView = UseTargetingCameraView();
             var hitCount = Physics.OverlapSphereNonAlloc(
                 origin,
                 lockOnMaxDistance,
                 lockOnCandidates,
                 lockOnLayers,
-                QueryTriggerInteraction.Ignore);
+            QueryTriggerInteraction.Ignore);
 
             Transform bestTarget = null;
-            var bestDot = minDot;
+            var bestDot = useTargetingCameraView ? float.MinValue : minDot;
             var bestDistance = float.MaxValue;
 
             for (var i = 0; i < hitCount; i++)
@@ -350,14 +381,23 @@ namespace JetSimulation.Combat
                 if (distance <= Mathf.Epsilon || distance > lockOnMaxDistance)
                     continue;
 
-                var dot = Vector3.Dot(forward, toTarget / distance);
-                if (dot < minDot)
+                var direction = toTarget / distance;
+                var dot = Vector3.Dot(forward, direction);
+                if (useTargetingCameraView)
+                {
+                    if (!IsInsideTargetingView(candidate))
+                        continue;
+                }
+                else if (dot < minDot)
+                {
                     continue;
+                }
 
-                if (dot > bestDot || (Mathf.Approximately(dot, bestDot) && distance < bestDistance))
+                var score = GetLockOnAimScore(candidate, dot);
+                if (score > bestDot || (Mathf.Approximately(score, bestDot) && distance < bestDistance))
                 {
                     bestTarget = candidate;
-                    bestDot = dot;
+                    bestDot = score;
                     bestDistance = distance;
                 }
             }
@@ -390,13 +430,13 @@ namespace JetSimulation.Combat
                    transform.IsChildOf(candidate);
         }
 
-        Camera GetTargetingCamera()
+        Camera GetPlayerViewCamera()
         {
-            if (targetingCamera != null)
-                return targetingCamera;
+            if (playerViewCamera != null)
+                return playerViewCamera;
 
-            targetingCamera = Camera.main;
-            return targetingCamera;
+            playerViewCamera = Camera.main;
+            return playerViewCamera;
         }
 
         Transform GetLockOnReferencePoint()
@@ -404,14 +444,112 @@ namespace JetSimulation.Combat
             if (lockOnReferencePoint != null)
                 return lockOnReferencePoint;
 
-            if (useTargetingCameraForLockOn)
-            {
-                var camera = GetTargetingCamera();
-                if (camera != null)
-                    return camera.transform;
-            }
+            if (targetingViewCamera != null)
+                return targetingViewCamera.transform;
 
             return muzzlePoint != null ? muzzlePoint : transform;
+        }
+
+        bool UseTargetingCameraView()
+        {
+            return requireTargetInsideTargetingView && targetingViewCamera != null;
+        }
+
+        bool IsInsideTargetingView(Transform target)
+        {
+            if (!UseTargetingCameraView())
+                return true;
+
+            return TryGetBestTargetingViewportPoint(target, out _);
+        }
+
+        float GetLockOnAimScore(Transform target, float dot)
+        {
+            if (UseTargetingCameraView() && TryGetBestTargetingViewportPoint(target, out var viewportPoint))
+            {
+                var viewportOffset = new Vector2(viewportPoint.x - 0.5f, viewportPoint.y - 0.5f);
+                return 1f - viewportOffset.sqrMagnitude;
+            }
+
+            return dot;
+        }
+
+        bool TryGetBestTargetingViewportPoint(Transform target, out Vector3 bestViewportPoint)
+        {
+            bestViewportPoint = default;
+            if (target == null || targetingViewCamera == null)
+                return false;
+
+            var bounds = GetTargetBounds(target);
+            var bestCenterDistance = float.MaxValue;
+            var hasPointInsideView = false;
+
+            CheckViewportPoint(bounds.center, ref bestViewportPoint, ref bestCenterDistance, ref hasPointInsideView);
+
+            for (var x = 0; x <= 1; x++)
+            for (var y = 0; y <= 1; y++)
+            for (var z = 0; z <= 1; z++)
+            {
+                var worldPoint = new Vector3(
+                    x == 0 ? bounds.min.x : bounds.max.x,
+                    y == 0 ? bounds.min.y : bounds.max.y,
+                    z == 0 ? bounds.min.z : bounds.max.z);
+
+                CheckViewportPoint(worldPoint, ref bestViewportPoint, ref bestCenterDistance, ref hasPointInsideView);
+            }
+
+            return hasPointInsideView;
+        }
+
+        void CheckViewportPoint(
+            Vector3 worldPoint,
+            ref Vector3 bestViewportPoint,
+            ref float bestCenterDistance,
+            ref bool hasPointInsideView)
+        {
+            var viewportPoint = targetingViewCamera.WorldToViewportPoint(worldPoint);
+            if (viewportPoint.z <= 0f ||
+                viewportPoint.x < 0f ||
+                viewportPoint.x > 1f ||
+                viewportPoint.y < 0f ||
+                viewportPoint.y > 1f)
+            {
+                return;
+            }
+
+            var centerDistance = (new Vector2(viewportPoint.x, viewportPoint.y) - new Vector2(0.5f, 0.5f)).sqrMagnitude;
+            if (!hasPointInsideView || centerDistance < bestCenterDistance)
+            {
+                bestViewportPoint = viewportPoint;
+                bestCenterDistance = centerDistance;
+            }
+
+            hasPointInsideView = true;
+        }
+
+        Bounds GetTargetBounds(Transform target)
+        {
+            var renderers = target.GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
+            {
+                var bounds = renderers[0].bounds;
+                for (var i = 1; i < renderers.Length; i++)
+                    bounds.Encapsulate(renderers[i].bounds);
+
+                return bounds;
+            }
+
+            var colliders = target.GetComponentsInChildren<Collider>();
+            if (colliders.Length > 0)
+            {
+                var bounds = colliders[0].bounds;
+                for (var i = 1; i < colliders.Length; i++)
+                    bounds.Encapsulate(colliders[i].bounds);
+
+                return bounds;
+            }
+
+            return new Bounds(target.position, Vector3.one);
         }
 
         void ResetLockOn()
@@ -482,6 +620,20 @@ namespace JetSimulation.Combat
                 lockOnReticle.SetInitialSize(lockOnInitialReticleSize);
         }
 
+        void UpdateTargetingArea()
+        {
+            if (targetingAreaUI == null)
+                return;
+
+            if (!showTargetingArea || targetingViewCamera == null)
+            {
+                targetingAreaUI.Hide();
+                return;
+            }
+
+            targetingAreaUI.Show(targetingViewCamera, GetPlayerViewCamera(), lockOnMaxDistance);
+        }
+
         GameObject ResolveTarget(Transform requestedTarget, Transform launchPoint)
         {
             if (requestedTarget != null && requestedTarget.gameObject.activeInHierarchy)
@@ -539,8 +691,29 @@ namespace JetSimulation.Combat
             if (!showLockOnGizmos)
                 return;
 
-            DrawLockOnCone(GetLockOnReferencePoint());
+            if (UseTargetingCameraView())
+                DrawTargetingCameraFrustum();
+            else
+                DrawLockOnCone(GetLockOnReferencePoint());
+
             DrawCurrentLockOnTarget();
+        }
+
+        void DrawTargetingCameraFrustum()
+        {
+            if (targetingViewCamera == null)
+                return;
+
+            var oldMatrix = Gizmos.matrix;
+            Gizmos.color = lockOnGizmoColor;
+            Gizmos.matrix = targetingViewCamera.transform.localToWorldMatrix;
+            Gizmos.DrawFrustum(
+                Vector3.zero,
+                targetingViewCamera.fieldOfView,
+                lockOnMaxDistance,
+                Mathf.Max(0.01f, targetingViewCamera.nearClipPlane),
+                targetingViewCamera.aspect);
+            Gizmos.matrix = oldMatrix;
         }
 
         void DrawLockOnCone(Transform launchPoint)
@@ -579,6 +752,149 @@ namespace JetSimulation.Combat
             Gizmos.color = currentTargetGizmoColor;
             Gizmos.DrawLine(GetLockOnReferencePoint().position, currentLockOnTarget.position);
             Gizmos.DrawWireSphere(currentLockOnTarget.position, 1.5f);
+        }
+    }
+
+    public sealed class WeaponAimAreaUI : MonoBehaviour
+    {
+        [SerializeField] Color lineColor = new Color(0.1f, 0.9f, 1f, 0.55f);
+        [SerializeField, Min(0.5f)] float lineThickness = 3f;
+        [SerializeField] int sortingOrder = 20;
+        [SerializeField, Min(0.01f)] float planeDistance = 0.5f;
+
+        Canvas canvas;
+        RectTransform root;
+        Image[] edges;
+        Sprite lineSprite;
+
+        public void Show(Camera targetingCamera, Camera playerViewCamera, float distance)
+        {
+            if (targetingCamera == null || playerViewCamera == null || distance <= 0f)
+            {
+                Hide();
+                return;
+            }
+
+            EnsureUi(playerViewCamera);
+
+            if (!TryGetProjectedTargetingCorners(targetingCamera, playerViewCamera, distance, out var corners))
+            {
+                Hide();
+                return;
+            }
+
+            root.gameObject.SetActive(true);
+            for (var i = 0; i < edges.Length; i++)
+                SetEdge(edges[i].rectTransform, corners[i], corners[(i + 1) % corners.Length]);
+        }
+
+        public void Hide()
+        {
+            if (root != null)
+                root.gameObject.SetActive(false);
+        }
+
+        void EnsureUi(Camera displayCamera)
+        {
+            if (root != null)
+            {
+                canvas.worldCamera = displayCamera;
+                canvas.sortingOrder = sortingOrder;
+                canvas.planeDistance = planeDistance;
+                return;
+            }
+
+            lineSprite = CreateLineSprite();
+
+            var canvasObject = new GameObject("Targeting Area Canvas", typeof(Canvas), typeof(CanvasScaler));
+            canvasObject.transform.SetParent(transform, false);
+            canvas = canvasObject.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = displayCamera;
+            canvas.planeDistance = planeDistance;
+            canvas.sortingOrder = sortingOrder;
+            canvas.overrideSorting = true;
+
+            var scaler = canvasObject.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+
+            var rootObject = new GameObject("Targeting Area", typeof(RectTransform));
+            rootObject.transform.SetParent(canvasObject.transform, false);
+            root = rootObject.GetComponent<RectTransform>();
+            root.anchorMin = new Vector2(0.5f, 0.5f);
+            root.anchorMax = new Vector2(0.5f, 0.5f);
+            root.pivot = new Vector2(0.5f, 0.5f);
+
+            edges = new Image[4];
+            for (var i = 0; i < edges.Length; i++)
+                edges[i] = CreateLine($"Edge {i + 1}", root);
+
+            Hide();
+        }
+
+        Image CreateLine(string lineName, Transform parent)
+        {
+            var lineObject = new GameObject(lineName, typeof(RectTransform), typeof(Image));
+            lineObject.transform.SetParent(parent, false);
+            var image = lineObject.GetComponent<Image>();
+            image.sprite = lineSprite;
+            image.color = lineColor;
+            image.raycastTarget = false;
+            return image;
+        }
+
+        void SetEdge(RectTransform rectTransform, Vector2 start, Vector2 end)
+        {
+            var delta = end - start;
+            var length = delta.magnitude;
+            var center = (start + end) * 0.5f;
+
+            rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+            rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+            rectTransform.pivot = new Vector2(0.5f, 0.5f);
+            rectTransform.anchoredPosition = center - new Vector2(Screen.width * 0.5f, Screen.height * 0.5f);
+            rectTransform.sizeDelta = new Vector2(length, lineThickness);
+            rectTransform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg);
+        }
+
+        bool TryGetProjectedTargetingCorners(
+            Camera targetingCamera,
+            Camera playerViewCamera,
+            float distance,
+            out Vector2[] screenCorners)
+        {
+            screenCorners = new Vector2[4];
+
+            var aimTransform = targetingCamera.transform;
+            var aimDistance = Mathf.Min(distance, Mathf.Max(targetingCamera.nearClipPlane, targetingCamera.farClipPlane));
+            var halfHeight = Mathf.Tan(targetingCamera.fieldOfView * 0.5f * Mathf.Deg2Rad) * aimDistance;
+            var halfWidth = halfHeight * targetingCamera.aspect;
+            var center = aimTransform.position + aimTransform.forward * aimDistance;
+
+            var worldCorners = new[]
+            {
+                center + aimTransform.up * halfHeight - aimTransform.right * halfWidth,
+                center + aimTransform.up * halfHeight + aimTransform.right * halfWidth,
+                center - aimTransform.up * halfHeight + aimTransform.right * halfWidth,
+                center - aimTransform.up * halfHeight - aimTransform.right * halfWidth
+            };
+
+            for (var i = 0; i < worldCorners.Length; i++)
+            {
+                var screenPoint = playerViewCamera.WorldToScreenPoint(worldCorners[i]);
+                if (screenPoint.z <= 0f)
+                    return false;
+
+                screenCorners[i] = screenPoint;
+            }
+
+            return true;
+        }
+
+        static Sprite CreateLineSprite()
+        {
+            var texture = Texture2D.whiteTexture;
+            return Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height), new Vector2(0.5f, 0.5f));
         }
     }
 }
