@@ -12,10 +12,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d9008209ae59ea347ad3c71054bbbbcb, type: 3}
   m_Name: JetMovementSettings
   m_EditorClassIdentifier: 
-  forwardSpeed: 80
-  pitchSpeed: 50
-  maxPitchAngle: 70
-  rollSpeed: 80
+  forwardSpeed: 0
+  pitchSpeed: 80
+  maxPitchAngle: 120
+  rollSpeed: 100
   autoYawStrength: 0.35
   mouseSensitivity: 2.5
   inputDeadzone: 0.05
