@@ -32,7 +32,7 @@ namespace JetSimulation.EnemySystem
         [Header("Boss")]
         [SerializeField] private EnemyBossController bossPrefab;
         [SerializeField] private bool enableBoss = true;
-        [SerializeField] private float bossSpawnDelay = 10f;
+        [SerializeField] private int maxWaveCountBeforeBoss = 10;
 
         [Header("Score Unlocks")]
         [SerializeField] private int a10UnlockScore = 1000;
@@ -65,17 +65,18 @@ namespace JetSimulation.EnemySystem
         [SerializeField] private float waveSpread = 7f;
 
         private float nextSpawnTime;
-        private float bossTimerStartTime;
+        private float nextBossSupportSpawnTime;
+        private int spawnedWaveCount;
         private bool hasSpawned;
         private bool bossSpawnRequested;
         private bool bossSpawned;
         private bool missingBossPrefabLogged;
         private Quaternion fixedRotation;
+        private static EnemyBossController activeBoss;
 
         private void Awake()
         {
             fixedRotation = transform.rotation;
-            bossTimerStartTime = Time.time;
             ResolveReferences();
         }
 
@@ -132,13 +133,20 @@ namespace JetSimulation.EnemySystem
 
             if (bossSpawned)
             {
+                UpdateBossSupportSpawning();
                 return true;
             }
 
-            if (!bossSpawnRequested && Time.time - bossTimerStartTime >= bossSpawnDelay)
+            if (activeBoss != null)
             {
-                bossSpawnRequested = true;
-                Debug.Log("[EnemySystem] Boss time reached. Normal enemy spawning stopped.");
+                bossSpawned = true;
+                UpdateBossSupportSpawning();
+                return true;
+            }
+
+            if (!bossSpawnRequested && spawnedWaveCount >= GetMaxWaveCountBeforeBoss())
+            {
+                RequestBossPhase();
             }
 
             if (!bossSpawnRequested)
@@ -156,8 +164,9 @@ namespace JetSimulation.EnemySystem
 
         private void SpawnBoss()
         {
-            if (bossSpawned)
+            if (bossSpawned || activeBoss != null)
             {
+                bossSpawned = true;
                 return;
             }
 
@@ -178,10 +187,38 @@ namespace JetSimulation.EnemySystem
             }
 
             var moveDirection = Vector3.back;
-            var boss = Instantiate(bossPrefab, transform.position, Quaternion.LookRotation(moveDirection, Vector3.up), enemyParent);
-            boss.Initialize(player, transform.position, moveDirection);
             bossSpawned = true;
+            var boss = Instantiate(bossPrefab, transform.position, Quaternion.LookRotation(moveDirection, Vector3.up), enemyParent);
+            activeBoss = boss;
+            boss.Initialize(player, transform.position, moveDirection);
+            nextBossSupportSpawnTime = Time.time + spawnInterval;
             Debug.Log("[EnemySystem] Boss battle started.");
+        }
+
+        private void UpdateBossSupportSpawning()
+        {
+            if (activeBoss == null)
+            {
+                return;
+            }
+
+            if (player == null || playerCamera == null)
+            {
+                ResolveReferences();
+            }
+
+            if (player == null || playerCamera == null || !HasAnySpawnablePrefab())
+            {
+                return;
+            }
+
+            if (Time.time < nextBossSupportSpawnTime)
+            {
+                return;
+            }
+
+            SpawnEnemy(0, 1);
+            nextBossSupportSpawnTime = Time.time + spawnInterval;
         }
 
         private static bool HasLivingNormalEnemies()
@@ -222,11 +259,39 @@ namespace JetSimulation.EnemySystem
 
         public void SpawnWave()
         {
+            if (bossSpawnRequested || bossSpawned)
+            {
+                return;
+            }
+
             var count = Mathf.Max(1, enemiesPerWave);
             for (var i = 0; i < count; i++)
             {
                 SpawnEnemy(i, count);
             }
+
+            spawnedWaveCount++;
+
+            if (enableBoss && spawnedWaveCount >= GetMaxWaveCountBeforeBoss())
+            {
+                RequestBossPhase();
+            }
+        }
+
+        private void RequestBossPhase()
+        {
+            if (bossSpawnRequested)
+            {
+                return;
+            }
+
+            bossSpawnRequested = true;
+            Debug.Log($"[EnemySystem] Max wave count reached ({spawnedWaveCount}/{GetMaxWaveCountBeforeBoss()}). Normal enemy spawning stopped.");
+        }
+
+        private int GetMaxWaveCountBeforeBoss()
+        {
+            return Mathf.Max(1, maxWaveCountBeforeBoss);
         }
 
         private void SpawnEnemy(int index, int count)
