@@ -34,6 +34,7 @@ namespace JetSimulation.EnemySystem
         public float CurrentHealth => currentHealth;
         public float HealthRatio => maxHealth <= 0f ? 0f : Mathf.Clamp01(currentHealth / maxHealth);
         public bool IsAlive => !isDestroyed && currentHealth > 0f;
+        public static int LocalDebugScore => localDebugScore;
 
         private void Awake()
         {
@@ -156,9 +157,10 @@ namespace JetSimulation.EnemySystem
                 return;
             }
 
+            localDebugScore += scoreOnDestroy;
+
             if (GameManager.Instance == null)
             {
-                localDebugScore += scoreOnDestroy;
                 Debug.Log($"[EnemySystem] Enemy destroyed. GameManager not found. Local debug score: {localDebugScore}");
                 return;
             }
@@ -169,7 +171,7 @@ namespace JetSimulation.EnemySystem
             var currentScore = GameManager.Instance.CurrentScore;
             if (currentScore == previousScore)
             {
-                Debug.Log($"[EnemySystem] Enemy destroyed. Requested +{scoreOnDestroy}, but GameManager score stayed {currentScore}. Score system may be inactive.");
+                Debug.Log($"[EnemySystem] Enemy destroyed. Requested +{scoreOnDestroy}, but GameManager score stayed {currentScore}. Local debug score: {localDebugScore}");
                 return;
             }
 
