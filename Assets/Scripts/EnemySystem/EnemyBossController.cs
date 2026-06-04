@@ -14,16 +14,13 @@ namespace JetSimulation.EnemySystem
 
         [Header("Movement")]
         [SerializeField] private float normalEnemySpeed = 35f;
-        [SerializeField] private float entryDistance = 50f;
+        [SerializeField] private float hoverDistanceFromPlayer = 400f;
         [SerializeField] private float entrySpeedMultiplier = 3f;
-        [SerializeField] private float cruiseSpeedMultiplier = 0.5f;
         [SerializeField] private float rotationLerpSpeed = 4f;
 
-        [Header("Laser")]
+        [Header("Targeting")]
         [SerializeField] private float laserRange = 900f;
-        [SerializeField] private float laserWidth = 0.18f;
         [SerializeField] private float laserHitRadius = 6f;
-        [SerializeField] private Color laserColor = Color.red;
 
         [Header("Missile")]
         [SerializeField] private float missileCooldown = 2f;
@@ -32,9 +29,7 @@ namespace JetSimulation.EnemySystem
         [SerializeField] private float missileLifetime = 8f;
         [SerializeField] private float missileScale = 1.5f;
 
-        private LineRenderer laserLine;
         private Vector3 moveDirection = Vector3.back;
-        private Vector3 entryTargetPosition;
         private float nextMissileTime;
         private bool isEntering;
         private bool isEnded;
@@ -51,7 +46,6 @@ namespace JetSimulation.EnemySystem
                 firePoint = transform;
             }
 
-            CreateLaserLine();
         }
 
         private void OnEnable()
@@ -75,7 +69,6 @@ namespace JetSimulation.EnemySystem
             ResolvePlayer();
             if (isEnded)
             {
-                SetLaserVisible(false);
                 return;
             }
 
@@ -83,13 +76,12 @@ namespace JetSimulation.EnemySystem
 
             if (player == null)
             {
-                SetLaserVisible(false);
                 AimAlongMoveDirection();
                 return;
             }
 
             AimAtPlayer();
-            UpdateLaser();
+            UpdateMissileAttack();
         }
 
         public void Initialize(Transform targetPlayer)
@@ -104,8 +96,7 @@ namespace JetSimulation.EnemySystem
 
             moveDirection = NormalizeDirection(forwardDirection);
             transform.position = spawnPosition;
-            entryTargetPosition = spawnPosition + moveDirection * Mathf.Max(0f, entryDistance);
-            isEntering = entryDistance > 0f;
+            isEntering = player != null && Vector3.Distance(transform.position, GetHoverPosition()) > 0.01f;
 
             if (player != null)
             {
@@ -119,14 +110,31 @@ namespace JetSimulation.EnemySystem
 
         private void UpdateMovement()
         {
-            var speed = normalEnemySpeed * (isEntering ? entrySpeedMultiplier : cruiseSpeedMultiplier);
-            transform.position += moveDirection * speed * Time.deltaTime;
-
-            if (isEntering && Vector3.Dot(entryTargetPosition - transform.position, moveDirection) <= 0f)
+            if (player == null)
             {
-                transform.position = entryTargetPosition;
+                return;
+            }
+
+            var hoverPosition = GetHoverPosition();
+            if (!isEntering)
+            {
+                transform.position = hoverPosition;
+                return;
+            }
+
+            var speed = normalEnemySpeed * entrySpeedMultiplier;
+            transform.position = Vector3.MoveTowards(transform.position, hoverPosition, speed * Time.deltaTime);
+
+            if ((hoverPosition - transform.position).sqrMagnitude <= 0.01f)
+            {
+                transform.position = hoverPosition;
                 isEntering = false;
             }
+        }
+
+        private Vector3 GetHoverPosition()
+        {
+            return player.position - moveDirection * Mathf.Max(0f, hoverDistanceFromPlayer);
         }
 
         private void AimAtPlayer(bool snap = false)
@@ -151,15 +159,10 @@ namespace JetSimulation.EnemySystem
                 : Quaternion.Slerp(transform.rotation, targetRotation, rotationLerpSpeed * Time.deltaTime);
         }
 
-        private void UpdateLaser()
+        private void UpdateMissileAttack()
         {
             var origin = firePoint.position;
             var direction = (player.position - origin).normalized;
-            var end = origin + direction * laserRange;
-
-            SetLaserVisible(true);
-            laserLine.SetPosition(0, origin);
-            laserLine.SetPosition(1, end);
 
             if (Time.time < nextMissileTime)
             {
@@ -224,7 +227,6 @@ namespace JetSimulation.EnemySystem
             }
 
             isEnded = true;
-            SetLaserVisible(false);
             Debug.Log("[EnemySystem] Boss destroyed. Game clear.");
             Time.timeScale = 0f;
         }
@@ -247,27 +249,6 @@ namespace JetSimulation.EnemySystem
             if (camera != null)
             {
                 player = camera.transform;
-            }
-        }
-
-        private void CreateLaserLine()
-        {
-            laserLine = gameObject.AddComponent<LineRenderer>();
-            laserLine.positionCount = 2;
-            laserLine.startWidth = laserWidth;
-            laserLine.endWidth = laserWidth;
-            laserLine.useWorldSpace = true;
-            laserLine.material = new Material(Shader.Find("Sprites/Default"));
-            laserLine.startColor = laserColor;
-            laserLine.endColor = laserColor;
-            SetLaserVisible(false);
-        }
-
-        private void SetLaserVisible(bool visible)
-        {
-            if (laserLine != null)
-            {
-                laserLine.enabled = visible;
             }
         }
 
