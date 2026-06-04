@@ -585,7 +585,7 @@ namespace JetSimulation.Combat
 
     public sealed class MachineGunCrosshairUI : MonoBehaviour
     {
-        [SerializeField] Color crosshairColor = new Color(0.2f, 1f, 0.85f, 0.9f);
+        [SerializeField] Color crosshairColor = Color.red;
         [SerializeField, Min(1f)] float lineLength = 22f;
         [SerializeField, Min(0.5f)] float lineThickness = 3f;
         [SerializeField, Min(0f)] float centerGap = 7f;

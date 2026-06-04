@@ -369,7 +369,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f051b6fa11d5f0e4eb39928d4c6d588c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  speed: 60
+  speed: 240
   downspeed: 30
   damage: 35
   fully_active: 0
@@ -390,6 +390,7 @@ MonoBehaviour:
   smoke: {fileID: 0}
   smoke_position: {fileID: 6573806826555785937}
   destroy_effect: {fileID: 4868538168526089871, guid: 7bcf29c8fbb433f4cbc27a4ae6ac2b79, type: 3}
+  lostTarget: 0
 --- !u!1001 &6573806826265068684
 PrefabInstance:
   m_ObjectHideFlags: 0
