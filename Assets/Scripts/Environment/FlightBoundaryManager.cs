@@ -26,6 +26,11 @@ namespace JetSimulation.Environment
         private bool isOutOfBounds = false;
         private float currentWarningTime = 0f;
 
+        private void Start()
+        {
+            // 게임 시작 시 인스펙터에 설정된 maxRadius 값으로 시각화 오브젝트 크기 초기화
+            SetBoundaryRadius(maxRadius);
+        }
         private void Update()
         {
             if (playerTransform == null || playerHealth == null || playerHealth.IsDead) return;
