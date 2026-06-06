@@ -79,17 +79,19 @@ MonoBehaviour:
   health: {fileID: 4609728598439726035}
   player: {fileID: 0}
   firePoint: {fileID: 0}
+  bossMissilePrefab: {fileID: 6573806827650273376, guid: 330054c6b1804a069cc072a9bfb2f015, type: 3}
   normalEnemySpeed: 35
   hoverDistanceFromPlayer: 400
   entrySpeedMultiplier: 3
   rotationLerpSpeed: 4
-  laserRange: 900
-  laserHitRadius: 6
-  missileCooldown: 2
+  missileCooldown: 1
   missileSpeed: 130
   missileDamage: 15
   missileLifetime: 8
   missileScale: 1.5
+  enableMissileAttack: 1
+  enableMissilePrediction: 1
+  missilePredictionTime: 1
 --- !u!54 &4764609233304647765
 Rigidbody:
   m_ObjectHideFlags: 0
