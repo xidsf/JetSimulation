@@ -751,6 +751,7 @@ MonoBehaviour:
   playerFlightController: {fileID: 320801090479701584}
   scorePerSecond: 10
   scoreTickInterval: 1
+  seaLevelY: -1000
 --- !u!4 &1058688092
 Transform:
   m_ObjectHideFlags: 0
@@ -1565,6 +1566,22 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player
       objectReference: {fileID: 0}
+    - target: {fileID: 1366294735234991108, guid: 4ae2bf9a09afe824393ddf077be5660c, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1366294735234991108, guid: 4ae2bf9a09afe824393ddf077be5660c, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 1366294735234991108, guid: 4ae2bf9a09afe824393ddf077be5660c, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 2574887031555596135, guid: 4ae2bf9a09afe824393ddf077be5660c, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3249944419510600971, guid: 4ae2bf9a09afe824393ddf077be5660c, type: 3}
       propertyPath: m_AnchorMax.y
       value: 0
@@ -1705,6 +1722,10 @@ PrefabInstance:
       propertyPath: sceneController
       value: 
       objectReference: {fileID: 1223671396}
+    - target: {fileID: 5638247250826159087, guid: 4ae2bf9a09afe824393ddf077be5660c, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 5753498976926070174, guid: 4ae2bf9a09afe824393ddf077be5660c, type: 3}
       propertyPath: m_AnchorMax.y
       value: 1
