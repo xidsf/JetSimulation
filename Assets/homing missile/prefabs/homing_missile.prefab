@@ -383,7 +383,7 @@ MonoBehaviour:
   isactive: 0
   sleepposition: {x: 200, y: 200, z: 200}
   targetpointer: {fileID: 6573806826466953269}
-  turnSpeed: 0.11
+  turnSpeed: 0.5
   launch_sound: {fileID: 6573806827650273694}
   thrust_sound: {fileID: 6573806827650273695}
   smoke_obj: {fileID: 9155463838991273943, guid: db97ba35f680c914480ecc075d752dbf, type: 3}

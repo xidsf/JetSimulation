@@ -62,6 +62,12 @@ namespace JetSimulation.Combat
         [SerializeField, Min(0f)] float lockOnFireDelay = 1f;
         [SerializeField, Min(0.01f)] float lockOnReleaseDuration = 0.25f;
 
+        [Header("Lock On Audio")]
+        [SerializeField, InspectorName("Lock On Try Clip")] AudioClip lockOnTryClip;
+        [SerializeField, InspectorName("Lock On Complete Clip")] AudioClip lockOnCompleteClip;
+        [SerializeField] AudioSource lockOnAudioSource;
+        [SerializeField, Range(0f, 1f)] float lockOnAudioVolume = 1f;
+
         [Header("Debug")]
         [SerializeField] bool showLockOnGizmos = true;
         [SerializeField] Color lockOnGizmoColor = new Color(1f, 0.85f, 0.1f, 0.35f);
@@ -80,6 +86,8 @@ namespace JetSimulation.Combat
         float lockOnTimer;
         float lockOnFireDelayTimer;
         float lockOnReleaseTimer;
+        float nextLockOnTryAudioTime;
+        float nextLockOnCompleteAudioTime;
         bool lockOnCompleteNotified;
         bool inputReleasedAfterLockComplete;
         bool queuedNextLockAfterPendingFire;
@@ -252,6 +260,7 @@ namespace JetSimulation.Combat
                 lockOnTimer = 0f;
                 lockOnFireDelayTimer = 0f;
                 lockOnReleaseTimer = 0f;
+                ResetLockOnAudioSchedule();
                 firedDuringCurrentHold = false;
                 lockOnCompleteNotified = false;
                 lockOnState = LockOnState.Acquiring;
@@ -265,6 +274,9 @@ namespace JetSimulation.Combat
 
             if (progress < 1f || firedDuringCurrentHold)
             {
+                if (!firedDuringCurrentHold)
+                    PlayLockOnTryAudioLoop();
+
                 lockOnFireDelayTimer = 0f;
                 return;
             }
@@ -285,6 +297,8 @@ namespace JetSimulation.Combat
 
             if (!attackEnabled)
                 return;
+
+            PlayLockOnCompleteAudioLoop();
 
             lockOnFireDelayTimer += Time.deltaTime;
             if (lockOnFireDelayTimer < lockOnFireDelay)
@@ -318,11 +332,13 @@ namespace JetSimulation.Combat
                 lockOnCompleted?.Invoke(currentLockOnTarget);
             }
 
+            StopLockOnAudio();
             pendingFireTarget = currentLockOnTarget;
             lockOnFireDelayTimer = 0f;
             inputReleasedAfterLockComplete = false;
             queuedNextLockAfterPendingFire = false;
             lockOnState = LockOnState.LockedPendingFire;
+            PlayLockOnCompleteAudioLoop();
         }
 
         Transform GetLockOnTarget(Transform referencePoint)
@@ -561,6 +577,8 @@ namespace JetSimulation.Combat
 
         void ResetLockOn()
         {
+            StopLockOnAudio();
+
             if (lockOnReticle != null)
                 lockOnReticle.Hide();
 
@@ -581,6 +599,8 @@ namespace JetSimulation.Combat
 
         void BeginLockOnRelease()
         {
+            StopLockOnAudio();
+
             if (lockOnReticle == null || !lockOnReticle.BeginRelease())
             {
                 ResetLockOn();
@@ -604,6 +624,8 @@ namespace JetSimulation.Combat
 
         void ClearLockOnAfterFire()
         {
+            StopLockOnAudio();
+
             if (lockOnReticle != null)
                 lockOnReticle.Hide();
 
@@ -619,6 +641,54 @@ namespace JetSimulation.Combat
             inputReleasedAfterLockComplete = false;
             queuedNextLockAfterPendingFire = false;
             lockOnState = LockOnState.Idle;
+        }
+
+        void PlayLockOnTryAudioLoop()
+        {
+            PlayLockOnAudioLoop(lockOnTryClip, ref nextLockOnTryAudioTime);
+        }
+
+        void PlayLockOnCompleteAudioLoop()
+        {
+            PlayLockOnAudioLoop(lockOnCompleteClip, ref nextLockOnCompleteAudioTime);
+        }
+
+        void PlayLockOnAudioLoop(AudioClip clip, ref float nextPlayTime)
+        {
+            if (clip == null || Time.time < nextPlayTime)
+                return;
+
+            var source = GetLockOnAudioSource();
+            if (source == null)
+                return;
+
+            source.PlayOneShot(clip, lockOnAudioVolume);
+            nextPlayTime = Time.time + Mathf.Max(0.01f, clip.length);
+        }
+
+        AudioSource GetLockOnAudioSource()
+        {
+            if (lockOnAudioSource == null)
+                lockOnAudioSource = gameObject.AddComponent<AudioSource>();
+
+            lockOnAudioSource.playOnAwake = false;
+            lockOnAudioSource.loop = false;
+            lockOnAudioSource.spatialBlend = 0f;
+            return lockOnAudioSource;
+        }
+
+        void StopLockOnAudio()
+        {
+            if (lockOnAudioSource != null)
+                lockOnAudioSource.Stop();
+
+            ResetLockOnAudioSchedule();
+        }
+
+        void ResetLockOnAudioSchedule()
+        {
+            nextLockOnTryAudioTime = 0f;
+            nextLockOnCompleteAudioTime = 0f;
         }
 
         void ApplyLockOnReticleSettings()
