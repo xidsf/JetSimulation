@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d9008209ae59ea347ad3c71054bbbbcb, type: 3}
   m_Name: JetMovementSettings
   m_EditorClassIdentifier: 
-  forwardSpeed: 40
+  forwardSpeed: 100
   pitchSpeed: 80
   maxPitchAngle: 120
   rollSpeed: 100

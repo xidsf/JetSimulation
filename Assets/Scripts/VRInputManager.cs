@@ -73,6 +73,13 @@ public class VRInputManager : MonoBehaviour
     [Tooltip("Allow Unity XR Interaction Toolkit simulated controllers for editor testing.")]
     public bool allowSimulatedXRControllers = true;
 
+    [Header("=== XRI Input Actions ===")]
+    [Tooltip("XRI right controller Rotation action. If assigned, this is used before raw XRController deviceRotation.")]
+    [SerializeField] private InputActionReference vrControllerRotationAction;
+
+    [Tooltip("XRI right controller Trigger/Activate Value action. If assigned, this is used before raw XRController trigger.")]
+    [SerializeField] private InputActionReference vrControllerTriggerAction;
+
     [Header("=== VR Input System Axis Mapping ===")]
     [Tooltip("Input System deviceRotation Euler axis used for pitch tilt.")]
     [SerializeField] private InputRotationAxis vrPitchInputAxis = InputRotationAxis.X;
@@ -139,6 +146,18 @@ public class VRInputManager : MonoBehaviour
         {
             LockCursor();
         }
+    }
+
+    private void OnEnable()
+    {
+        vrControllerRotationAction?.action?.Enable();
+        vrControllerTriggerAction?.action?.Enable();
+    }
+
+    private void OnDisable()
+    {
+        vrControllerRotationAction?.action?.Disable();
+        vrControllerTriggerAction?.action?.Disable();
     }
 
     private void Update()
@@ -325,6 +344,12 @@ public class VRInputManager : MonoBehaviour
 
     private bool TryGetRightControllerInput(out Quaternion rotation, out float triggerValue)
     {
+        if (TryGetRightControllerInputActionInput(out rotation, out triggerValue))
+        {
+            _debugInputSource = "XRI Action";
+            return true;
+        }
+
         if (TryGetRightControllerInputSystemInput(out rotation, out triggerValue))
         {
             _debugInputSource = "InputSystem";
@@ -337,6 +362,31 @@ public class VRInputManager : MonoBehaviour
         rotation = Quaternion.identity;
         triggerValue = 0f;
         return false;
+    }
+
+    private bool TryGetRightControllerInputActionInput(out Quaternion rotation, out float triggerValue)
+    {
+        InputAction rotationAction = vrControllerRotationAction != null ? vrControllerRotationAction.action : null;
+        if (rotationAction == null)
+        {
+            rotation = Quaternion.identity;
+            triggerValue = 0f;
+            return false;
+        }
+
+        rotation = rotationAction.ReadValue<Quaternion>();
+        if (!IsValidRotation(rotation))
+        {
+            triggerValue = 0f;
+            return false;
+        }
+
+        _debugInputDevice = rotationAction.name;
+        _usingSimulatedController = false;
+
+        InputAction triggerAction = vrControllerTriggerAction != null ? vrControllerTriggerAction.action : null;
+        triggerValue = triggerAction != null ? triggerAction.ReadValue<float>() : 0f;
+        return true;
     }
 
     private bool TryGetRightControllerInputSystemInput(out Quaternion rotation, out float triggerValue)
