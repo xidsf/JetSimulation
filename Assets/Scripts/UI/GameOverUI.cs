@@ -1,5 +1,5 @@
 using UnityEngine;
-using TMPro; // TextMeshPro를 사용하기 위해 추가
+using TMPro;
 using JetSimulation.Core;
 
 namespace JetSimulation.UI
@@ -21,7 +21,6 @@ namespace JetSimulation.UI
 
         private void UpdateFinalScoreUI()
         {
-            // GameManager 싱글톤 인스턴스가 존재하고 텍스트 컴포넌트가 연결되어 있다면
             if (GameManager.Instance != null && finalScoreText != null)
             {
                 // 천 단위 콤마 포맷(N0)을 적용하여 깔끔하게 출력
@@ -29,14 +28,28 @@ namespace JetSimulation.UI
             }
         }
 
+        /// <summary>
+        /// 다시 시작하기 버튼 클릭 이벤트
+        /// </summary>
         public void OnClickRetry()
         {
-            if (sceneController != null) sceneController.LoadGameScene();
+            // VR 프레임 드랍 및 멀미 방지를 위해 비동기 메서드로 변경
+            if (sceneController != null)
+            {
+                sceneController.LoadGameSceneAsync();
+            }
         }
 
+        /// <summary>
+        /// 로비로 돌아가기 버튼 클릭 이벤트
+        /// </summary>
         public void OnClickLobby()
         {
-            if (sceneController != null) sceneController.LoadStartScene();
+            // 시작 화면으로 돌아갈 때도 안전하게 비동기 암전 로딩 적용
+            if (sceneController != null)
+            {
+                sceneController.LoadStartSceneAsync();
+            }
         }
     }
 }
