@@ -3,7 +3,7 @@ using UnityEngine.UI;
 using System.Collections;
 using TMPro;
 using JetSimulation.Core;
-using JetSimulation.Environment; // 네임스페이스 주의 (경계선 매니저)
+using JetSimulation.Environment;
 
 namespace JetSimulation.UI
 {
@@ -12,7 +12,6 @@ namespace JetSimulation.UI
         [Header("References")]
         [SerializeField] private PlayerHealth playerHealth;
         [SerializeField] private FlightBoundaryManager boundaryManager;
-
         [SerializeField] private Image vignetteImage;
 
         [Header("Damage Settings")]
@@ -25,18 +24,9 @@ namespace JetSimulation.UI
 
         [Header("Game Over Settings")]
         [SerializeField] private float fadeDuration = 2f;
-
-        [Tooltip("카메라 자식으로 넣은 3D 구체(FadeSphere)를 넣어주세요")]
         [SerializeField] private Renderer fadeRenderer;
-
-        [Tooltip("배경과 함께 서서히 나타날 텍스트 (작전 실패)")]
         [SerializeField] private TextMeshProUGUI gameOverText;
-
-        [Tooltip("완전히 암전된 후 나타날 버튼들을 넣어주세요")]
         [SerializeField] private GameObject[] gameOverButtons;
-
-        // 완전히 암전된 후 버튼과 함께 나타날 최종 점수 오브젝트 추가
-        [Tooltip("완전히 암전된 후 나타날 최종 점수 텍스트 오브젝트를 넣어주세요")]
         [SerializeField] private GameObject finalScoreObject;
 
         private Coroutine effectCoroutine;
@@ -83,8 +73,11 @@ namespace JetSimulation.UI
             }
         }
 
+        // [복구 완료] 작전 구역 이탈 시 붉은 화면 깜빡임 연출
         private IEnumerator WarningPulseRoutine()
         {
+            if (vignetteImage == null) yield break;
+
             Color c = vignetteImage.color;
             while (isOutOfBounds)
             {
@@ -96,6 +89,9 @@ namespace JetSimulation.UI
 
         private void ShowDamageEffect()
         {
+            // 핵심 추가: 이미 사망했다면 데미지 깜빡임 이펙트를 무시하여 암전 연출에 방해되지 않도록 함
+            if (playerHealth != null && playerHealth.IsDead) return;
+
             if (vignetteImage == null) return;
             if (effectCoroutine != null) StopCoroutine(effectCoroutine);
             effectCoroutine = StartCoroutine(DamageVignetteRoutine());
@@ -142,7 +138,6 @@ namespace JetSimulation.UI
             }
         }
 
-        // --- 3. 3D 구체를 활용한 암전 및 UIManager 연동 ---
         private void ShowGameOverFade()
         {
             if (fadeRenderer != null)
@@ -165,9 +160,22 @@ namespace JetSimulation.UI
             Color bgColor = Color.black;
             if (fadeRenderer != null)
             {
-                bgColor = fadeRenderer.material.color;
+                // URP 쉐이더 호환성을 위해 안전하게 _BaseColor에 접근
+                if (fadeRenderer.material.HasProperty("_BaseColor"))
+                {
+                    bgColor = fadeRenderer.material.GetColor("_BaseColor");
+                }
+                else
+                {
+                    bgColor = fadeRenderer.material.color;
+                }
+
                 bgColor.a = 0f;
-                fadeRenderer.material.color = bgColor;
+
+                if (fadeRenderer.material.HasProperty("_BaseColor"))
+                    fadeRenderer.material.SetColor("_BaseColor", bgColor);
+                else
+                    fadeRenderer.material.color = bgColor;
             }
 
             Color textColor = Color.white;
@@ -195,7 +203,10 @@ namespace JetSimulation.UI
                 if (fadeRenderer != null)
                 {
                     bgColor.a = alpha;
-                    fadeRenderer.material.color = bgColor;
+                    if (fadeRenderer.material.HasProperty("_BaseColor"))
+                        fadeRenderer.material.SetColor("_BaseColor", bgColor);
+                    else
+                        fadeRenderer.material.color = bgColor;
                 }
 
                 if (gameOverText != null)

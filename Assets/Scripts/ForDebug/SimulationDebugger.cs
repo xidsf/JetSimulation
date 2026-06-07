@@ -48,8 +48,8 @@ namespace JetSimulation.DebugUtils
             {
                 if (boundaryManager != null)
                 {
-                    // 아까 만든 퍼블릭 함수를 깔끔하게 호출!
-                    boundaryManager.SetBoundaryRadius(debugBoundaryRadius);
+                    //// 아까 만든 퍼블릭 함수를 깔끔하게 호출!
+                    //boundaryManager.SetBoundaryRadius(debugBoundaryRadius);
                     Debug.Log($"[Debug] 숫자 3키 입력: 맵 한계선을 {debugBoundaryRadius}m로, 스케일을 {debugBoundaryRadius * 2f}로 좁혔습니다.");
                 }
             }

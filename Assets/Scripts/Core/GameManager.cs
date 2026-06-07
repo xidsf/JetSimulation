@@ -23,20 +23,18 @@ namespace JetSimulation.Core
         [SerializeField] private int scorePerSecond = 10;
         [SerializeField] private float scoreTickInterval = 1f;
 
+        [Header("Environment Settings")]
+        [Tooltip("추락사로 판정되는 바다 수면 높이")]
+        [SerializeField] private float seaLevelY = -1000f;
+
         public event Action<int> OnScoreChanged;
 
         public int CurrentScore => currentScore;
 
         private void Awake()
         {
-            if (Instance == null)
-            {
-                Instance = this;
-            }
-            else
-            {
-                Destroy(gameObject);
-            }
+            if (Instance == null) Instance = this;
+            else Destroy(gameObject);
         }
 
         private void Start()
@@ -46,18 +44,12 @@ namespace JetSimulation.Core
 
         private void OnEnable()
         {
-            if (playerHealth != null)
-            {
-                playerHealth.OnPlayerDied += HandleGameOver;
-            }
+            if (playerHealth != null) playerHealth.OnPlayerDied += HandleGameOver;
         }
 
         private void OnDisable()
         {
-            if (playerHealth != null)
-            {
-                playerHealth.OnPlayerDied -= HandleGameOver;
-            }
+            if (playerHealth != null) playerHealth.OnPlayerDied -= HandleGameOver;
         }
 
         public void StartGame()
@@ -71,7 +63,6 @@ namespace JetSimulation.Core
         public void AddScoreForKill(int amount)
         {
             if (!isScoreActive || amount <= 0) return;
-
             currentScore += amount;
             OnScoreChanged?.Invoke(currentScore);
         }
@@ -79,10 +70,8 @@ namespace JetSimulation.Core
         public void DeductScoreForDamage(int amount)
         {
             if (!isScoreActive || amount <= 0) return;
-
             currentScore -= amount;
             if (currentScore < 0) currentScore = 0;
-
             OnScoreChanged?.Invoke(currentScore);
         }
 
@@ -92,7 +81,6 @@ namespace JetSimulation.Core
             {
                 yield return new WaitForSeconds(scoreTickInterval);
                 if (!isScoreActive) break;
-
                 currentScore += scorePerSecond;
                 OnScoreChanged?.Invoke(currentScore);
             }
@@ -102,27 +90,29 @@ namespace JetSimulation.Core
         {
             Debug.Log("게임 오버! 모든 조작 및 점수 기록을 차단합니다.");
 
-            // 1. 점수 기록 완전 중단
             isScoreActive = false;
             StopAllCoroutines();
 
-            // 2. 공격 조작 차단 (팀원 스크립트 활성화 해제)
             if (playerAttackController != null)
             {
                 playerAttackController.SetAttackEnabled(false);
             }
 
-            // 3. 비행 조작 차단 주석 해제 (전진 및 회전 완전 정지)
             if (playerFlightController != null)
             {
-                playerFlightController.enabled = false;
+                // 1. 관성 완전 차단 (기체 물리 정지)
+                playerFlightController.HaltFlight();
+
+                // 2. 바다 밑에 처박혔다면 즉시 수면 위 안전한 고도로 끌어올림 (UI 클리핑 원천 차단)
+                if (playerFlightController.transform.position.y <= seaLevelY + 5f)
+                {
+                    Vector3 pos = playerFlightController.transform.position;
+                    // 수면(-1000)보다 20만큼 높은 -980으로 위치 강제 이동
+                    playerFlightController.transform.position = new Vector3(pos.x, seaLevelY + 20f, pos.z);
+                }
             }
 
-            // 4. UIManager 연동 주석 해제 (GameOver 캔버스 출력)
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.ShowPanel(UIPanelType.GameOver);
-            }
+            // UI 호출은 기존처럼 CameraEffectManager의 연출 로직에 맡깁니다.
         }
     }
 }

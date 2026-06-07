@@ -87,7 +87,7 @@ public class PlayerJetController : MonoBehaviour
     private void ApplyRotation()
     {
         float pitch = _input.PitchInput;
-        float roll  = _input.RollInput;
+        float roll = _input.RollInput;
         float rotationSpeedScale = _input.useVR ? Mathf.Max(0f, _input.vrRotationSpeedScale) : 1f;
 
         // ── Pitch: 기수 올리기/내리기 (로컬 X축 회전)
@@ -106,6 +106,21 @@ public class PlayerJetController : MonoBehaviour
         Quaternion deltaRotation = Quaternion.Euler(pitchAmount, yawAmount, rollAmount);
         Quaternion targetRotation = _rb.rotation * deltaRotation;
         _rb.MoveRotation(targetRotation);
+    }
+
+    // ──────────────────────────────────────────────
+    //  사망 시 비행 완전 정지 (새로 추가된 핵심 로직)
+    // ──────────────────────────────────────────────
+    public void HaltFlight()
+    {
+        this.enabled = false; // FixedUpdate 실행 중지 (조작 입력 차단)
+
+        if (_rb != null)
+        {
+            _rb.velocity = Vector3.zero; // 전진 관성 완벽 제거
+            _rb.angularVelocity = Vector3.zero; // 회전 관성 완벽 제거
+            _rb.isKinematic = true; // 외부 물리력 작용 원천 차단 (완전 정지)
+        }
     }
 
     // ──────────────────────────────────────────────
