@@ -28,28 +28,16 @@ namespace JetSimulation.UI
             }
         }
 
-        /// <summary>
-        /// 다시 시작하기 버튼 클릭 이벤트
-        /// </summary>
         public void OnClickRetry()
         {
-            // VR 프레임 드랍 및 멀미 방지를 위해 비동기 메서드로 변경
-            if (sceneController != null)
-            {
-                sceneController.LoadGameSceneAsync();
-            }
+            // 암전 후 동기 로딩을 실행하는 1번 대안 메서드 호출
+            if (sceneController != null) sceneController.LoadGameScene();
         }
 
-        /// <summary>
-        /// 로비로 돌아가기 버튼 클릭 이벤트
-        /// </summary>
         public void OnClickLobby()
         {
-            // 시작 화면으로 돌아갈 때도 안전하게 비동기 암전 로딩 적용
-            if (sceneController != null)
-            {
-                sceneController.LoadStartSceneAsync();
-            }
+            // 암전 후 동기 로딩을 실행하는 1번 대안 메서드 호출
+            if (sceneController != null) sceneController.LoadStartScene();
         }
     }
 }

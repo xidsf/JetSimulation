@@ -293,7 +293,12 @@ namespace JetSimulation.EnemySystem
 
             isEnded = true;
             Debug.Log("[EnemySystem] Boss destroyed. Game clear.");
-            Time.timeScale = 0f;
+
+            // GameManager에게 보스가 죽었음을 알림
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.HandleBossCleared();
+            }
         }
 
         private void ResolvePlayer()
