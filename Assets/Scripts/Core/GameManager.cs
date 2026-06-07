@@ -107,12 +107,46 @@ namespace JetSimulation.Core
                 if (playerFlightController.transform.position.y <= seaLevelY + 5f)
                 {
                     Vector3 pos = playerFlightController.transform.position;
-                    // 수면(-1000)보다 20만큼 높은 -980으로 위치 강제 이동
                     playerFlightController.transform.position = new Vector3(pos.x, seaLevelY + 20f, pos.z);
                 }
             }
 
             // UI 호출은 기존처럼 CameraEffectManager의 연출 로직에 맡깁니다.
+        }
+
+        /// <summary>
+        /// 보스가 파괴되었을 때(클리어) 호출되는 메서드
+        /// </summary>
+        public void HandleBossCleared()
+        {
+            Debug.Log("보스 클리어! 점수 기록을 차단하고 종료 UI를 호출합니다.");
+
+            isScoreActive = false;
+            StopAllCoroutines();
+
+            // 클리어 후 추가 발사 차단 (비행 컨트롤은 여운을 위해 남겨둠)
+            if (playerAttackController != null)
+            {
+                playerAttackController.SetAttackEnabled(false);
+            }
+
+            StartCoroutine(BossClearRoutine());
+        }
+
+        private IEnumerator BossClearRoutine()
+        {
+            // 보스가 터지는 화려한 이펙트와 함께 여유롭게 비행하는 느낌을 주도록 3초간 대기
+            yield return new WaitForSeconds(3f);
+
+            // UIManager의 O(1) 스위칭 시스템을 활용해 깔끔하게 GameOver 패널 호출
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowPanel(UIPanelType.GameOver);
+            }
+            else
+            {
+                Debug.LogWarning("[GameManager] UIManager 인스턴스가 존재하지 않아 UI를 띄울 수 없습니다.");
+            }
         }
     }
 }
