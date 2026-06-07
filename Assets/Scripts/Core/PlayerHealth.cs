@@ -1,7 +1,7 @@
-using UnityEngine;
 using System;
-using JetSimulation.Combat; // 팀원의 Combat 인터페이스 참조를 위해 추가
+using JetSimulation.Combat;
 using JetSimulation.EnemySystem;
+using UnityEngine;
 
 namespace JetSimulation.Core
 {
@@ -9,24 +9,19 @@ namespace JetSimulation.Core
     {
         [Header("Health Settings")]
         [SerializeField] private float maxHealth = 100f;
+
+        [Header("Collision Effect")]
+        [SerializeField] private GameObject collisionEffectPrefab;
+        [SerializeField, Min(0f)] private float collisionEffectLifetime = 5f;
+        [SerializeField] private bool alignCollisionEffectToContactNormal = true;
+
         private float currentHealth;
 
         public bool IsDead { get; private set; }
 
-        // 기존 코어 아키텍처의 핵심 이벤트 Action들
-        public event Action<float> OnHealthChanged; // 체력 비율 (0 ~ 1) 전달용
+        public event Action<float> OnHealthChanged;
         public event Action OnTookDamage;
         public event Action OnPlayerDied;
-
-        private void OnTriggerEnter(Collider other)
-        {
-            TryHandleEnemyCollision(other.gameObject);
-        }
-
-        private void OnCollisionEnter(Collision collision)
-        {
-            TryHandleEnemyCollision(collision.gameObject);
-        }
 
         private void Awake()
         {
@@ -34,29 +29,61 @@ namespace JetSimulation.Core
             IsDead = false;
         }
 
-        /// <summary>
-        /// 미사일 폭발/충돌 스크립트가 플레이어를 맞췄을 때 호출하게 될 인터페이스 메서드
-        /// </summary>
+        private void OnTriggerEnter(Collider other)
+        {
+            if (other == null)
+            {
+                return;
+            }
+
+            var hitPoint = other.ClosestPoint(transform.position);
+            if (!IsFinite(hitPoint))
+            {
+                hitPoint = transform.position;
+            }
+
+            TryHandleEnemyCollision(other.gameObject, hitPoint, GetDirectionFromSource(other.gameObject));
+        }
+
+        private void OnCollisionEnter(Collision collision)
+        {
+            if (collision == null)
+            {
+                return;
+            }
+
+            var hitPoint = transform.position;
+            var hitNormal = GetDirectionFromSource(collision.gameObject);
+
+            if (collision.contactCount > 0)
+            {
+                var contact = collision.GetContact(0);
+                hitPoint = contact.point;
+                hitNormal = contact.normal;
+            }
+
+            TryHandleEnemyCollision(collision.gameObject, hitPoint, hitNormal);
+        }
+
         public void TakeDamage(float amount, GameObject source)
         {
-            if (IsDead || amount <= 0f) return;
+            if (IsDead || amount <= 0f)
+            {
+                return;
+            }
 
-            // 핵심 수정: 오버킬(9999 대미지)이 들어와도 내 현재 체력 이상으로는 페널티를 받지 않음
-            float actualDamage = Mathf.Min(amount, currentHealth);
-
-            currentHealth -= amount;
-            if (currentHealth < 0f) currentHealth = 0f;
+            var actualDamage = Mathf.Min(amount, currentHealth);
+            currentHealth = Mathf.Max(0f, currentHealth - amount);
 
             OnHealthChanged?.Invoke(currentHealth / maxHealth);
             OnTookDamage?.Invoke();
 
             if (GameManager.Instance != null)
             {
-                // 실제 깎인 체력 비례로만 점수 차감 (즉사해도 최대 200점만 깎임)
                 GameManager.Instance.DeductScoreForDamage(Mathf.RoundToInt(actualDamage * 2));
             }
 
-            Debug.Log($"[Player] 피격! 대미지: {amount} | 남은 체력: {currentHealth}");
+            Debug.Log($"[Player] Took damage: {amount} | Remaining health: {currentHealth}");
 
             if (currentHealth <= 0f)
             {
@@ -73,11 +100,11 @@ namespace JetSimulation.Core
 
             currentHealth = 0f;
             OnHealthChanged?.Invoke(0f);
-            Debug.Log($"[Player] 즉사 충돌 발생: {(source != null ? source.name : "Unknown")}");
+            Debug.Log($"[Player] Instant collision death: {(source != null ? source.name : "Unknown")}");
             Die();
         }
 
-        private void TryHandleEnemyCollision(GameObject hitObject)
+        private void TryHandleEnemyCollision(GameObject hitObject, Vector3 hitPoint, Vector3 hitNormal)
         {
             if (IsDead || hitObject == null)
             {
@@ -91,17 +118,57 @@ namespace JetSimulation.Core
                 return;
             }
 
+            PlayCollisionEffect(hitPoint, hitNormal);
             KillInstantly(hitObject);
+        }
+
+        private void PlayCollisionEffect(Vector3 hitPoint, Vector3 hitNormal)
+        {
+            if (collisionEffectPrefab == null)
+            {
+                return;
+            }
+
+            if (!IsFinite(hitPoint))
+            {
+                hitPoint = transform.position;
+            }
+
+            var rotation = transform.rotation;
+            if (alignCollisionEffectToContactNormal && hitNormal.sqrMagnitude > Mathf.Epsilon)
+            {
+                rotation = Quaternion.LookRotation(hitNormal.normalized, Vector3.up);
+            }
+
+            var effect = Instantiate(collisionEffectPrefab, hitPoint, rotation);
+            if (collisionEffectLifetime > 0f)
+            {
+                Destroy(effect, collisionEffectLifetime);
+            }
+        }
+
+        private Vector3 GetDirectionFromSource(GameObject source)
+        {
+            if (source == null)
+            {
+                return transform.forward;
+            }
+
+            var direction = transform.position - source.transform.position;
+            return direction.sqrMagnitude > Mathf.Epsilon ? direction.normalized : transform.forward;
+        }
+
+        private static bool IsFinite(Vector3 value)
+        {
+            return float.IsFinite(value.x) && float.IsFinite(value.y) && float.IsFinite(value.z);
         }
 
         private void Die()
         {
             IsDead = true;
-
-            // 4. GameManager와 CameraEffectManager가 수신하여 암전 및 조작을 끊는 사망 이벤트 발생
             OnPlayerDied?.Invoke();
 
-            Debug.Log("[Player] 사망 상태에 진입하여 시네마틱 연출을 시작합니다.");
+            Debug.Log("[Player] Entered dead state.");
         }
     }
 }

@@ -430,6 +430,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   maxHealth: 100
+  collisionEffectPrefab: {fileID: 8295591563862043295, guid: 98c5ce036f68d8941922e7541fb70887, type: 3}
+  collisionEffectLifetime: 5
+  alignCollisionEffectToContactNormal: 1
 --- !u!1 &1111235352997057648
 GameObject:
   m_ObjectHideFlags: 0
