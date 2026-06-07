@@ -16,7 +16,11 @@ namespace JetSimulation.Core
         [Header("VR Transition")]
         [Tooltip("화면 암전에 사용할 FadeSphere의 Renderer를 연결해주세요.")]
         [SerializeField] private Renderer fadeRenderer;
-        [SerializeField] private float fadeDuration = 1.0f; // 암전에 걸리는 시간
+
+        [Tooltip("씬 전환 시 서서히 사라지게 할 UI 캔버스 그룹을 연결해주세요 (옵션)")]
+        [SerializeField] private CanvasGroup uiCanvasGroup;
+
+        [SerializeField] private float fadeDuration = 1.0f;
 
         private void Start()
         {
@@ -24,17 +28,11 @@ namespace JetSimulation.Core
             SetFadeAlpha(0f);
         }
 
-        /// <summary>
-        /// 시작(로비) 씬으로 이동합니다.
-        /// </summary>
         public void LoadStartScene()
         {
             StartCoroutine(TransitionAndLoad(startSceneName));
         }
 
-        /// <summary>
-        /// 메인 게임 씬으로 이동합니다.
-        /// </summary>
         public void LoadGameScene()
         {
             StartCoroutine(TransitionAndLoad(gameSceneName));
@@ -42,20 +40,44 @@ namespace JetSimulation.Core
 
         private IEnumerator TransitionAndLoad(string sceneName)
         {
-            // 1. 씬을 넘기기 전, 화면을 먼저 완전히 까맣게 만듭니다.
-            if (fadeRenderer != null)
+            float timer = 0f;
+            float startSphereAlpha = 0f;
+
+            // 1. 현재 화면이 이미 얼마나 어두운 상태인지 체크
+            if (fadeRenderer != null && fadeRenderer.material.HasProperty("_Color"))
             {
-                float timer = 0f;
-                while (timer < fadeDuration)
-                {
-                    timer += Time.deltaTime;
-                    SetFadeAlpha(timer / fadeDuration);
-                    yield return null;
-                }
-                SetFadeAlpha(1f); // 완벽한 암전 보장
+                startSphereAlpha = fadeRenderer.material.color.a;
             }
 
-            // 2. 화면이 새카매진 상태에서 씬을 동기식으로 로드합니다.
+            // 이미 화면이 완전히 까만 상태인지 확인 (오차 허용)
+            bool isAlreadyDark = startSphereAlpha >= 0.95f;
+
+            // 2. 암전 및 UI 페이드 아웃 동시 진행
+            while (timer < fadeDuration)
+            {
+                timer += Time.deltaTime;
+                float progress = timer / fadeDuration;
+
+                // 화면이 밝은 상태(시작 화면)라면 서서히 암전 진행
+                if (fadeRenderer != null && !isAlreadyDark)
+                {
+                    SetFadeAlpha(Mathf.Lerp(startSphereAlpha, 1f, progress));
+                }
+
+                // UI 캔버스가 연결되어 있다면, 텍스트와 버튼을 서서히 투명하게(사라지게) 만듦
+                if (uiCanvasGroup != null)
+                {
+                    uiCanvasGroup.alpha = Mathf.Lerp(1f, 0f, progress);
+                }
+
+                yield return null;
+            }
+
+            // 3. 최종 상태 확정 (완전 암전, UI 완전 투명)
+            SetFadeAlpha(1f);
+            if (uiCanvasGroup != null) uiCanvasGroup.alpha = 0f;
+
+            // 4. 안전하게 씬 이동
             SceneManager.LoadScene(sceneName);
         }
 

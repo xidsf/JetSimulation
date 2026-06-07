@@ -158,7 +158,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -6, y: -215}
+  m_AnchoredPosition: {x: -6, y: -375}
   m_SizeDelta: {x: 480, y: 120}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &11252437
@@ -368,7 +368,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.29999998, y: 0.29999998, z: 0.29999998}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1681923693}
@@ -451,6 +451,7 @@ MonoBehaviour:
   startSceneName: StartScene
   gameSceneName: GameScene
   fadeRenderer: {fileID: 319667867}
+  uiCanvasGroup: {fileID: 995147349}
   fadeDuration: 1.5
 --- !u!4 &613594033
 Transform:
@@ -528,6 +529,7 @@ GameObject:
   - component: {fileID: 995147346}
   - component: {fileID: 995147345}
   - component: {fileID: 995147348}
+  - component: {fileID: 995147349}
   m_Layer: 5
   m_Name: Canvas
   m_TagString: Untagged
@@ -621,6 +623,18 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 4294967295
   m_RaycastTriggerInteraction: 1
+--- !u!225 &995147349
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 995147343}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
 --- !u!1 &1052230028
 GameObject:
   m_ObjectHideFlags: 0
