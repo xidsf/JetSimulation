@@ -838,7 +838,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ee6ea409e5fa5ec438518392385602d7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  indicatorRect: {fileID: 1406098088}
+  indicatorText: {fileID: 0}
   tacticalDataText: {fileID: 325604460}
   playerTransform: {fileID: 320801090479701583}
   targetPosition: {x: 0, y: 0, z: 0}
@@ -954,6 +954,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   startSceneName: StartScene
   gameSceneName: GameScene
+  fadeRenderer: {fileID: 646500973}
+  fadeDuration: 1.5
 --- !u!4 &1223671397
 Transform:
   m_ObjectHideFlags: 0
@@ -1393,7 +1395,7 @@ Light:
   m_BounceIntensity: 1
   m_ColorTemperature: 6570
   m_UseColorTemperature: 0
-  m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
+  m_BoundingSphereOverride: {x: 1.02e-43, y: 1.1e-44, z: 1.46e-42, w: 2.0479316e-38}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ShadowRadius: 0
