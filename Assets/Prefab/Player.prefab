@@ -185,7 +185,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d1b0d83aa6cc94a41a51da75a9d634e6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  playerHealth: {fileID: 3086925036020977374}
+  playerHealth: {fileID: 0}
   hpSlider: {fileID: 1134605901889691703}
   fillSpeed: 5
 --- !u!1 &824128597654699405
@@ -203,7 +203,6 @@ GameObject:
   - component: {fileID: 8866313247851139240}
   - component: {fileID: 2435883633438361405}
   - component: {fileID: 6474087093809889819}
-  - component: {fileID: 3086925036020977374}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -419,19 +418,6 @@ MonoBehaviour:
   showDebugRay: 1
   debugRayColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
 --- !u!114 &6474087093809889819
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 824128597654699405}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d7db0a81318bf7d4bb2168b4a6ceab08, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  maxHealth: 100
---- !u!114 &3086925036020977374
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
