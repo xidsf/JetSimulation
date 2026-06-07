@@ -1,3 +1,4 @@
+using JetSimulation.Core;
 using UnityEngine;
 
 namespace JetSimulation.EnemySystem
@@ -50,6 +51,7 @@ namespace JetSimulation.EnemySystem
         private Transform despawnReference;
         private bool isInitialized;
         private bool isEntering;
+        private bool gameOverSubscribed;
 
         private void Reset()
         {
@@ -64,6 +66,14 @@ namespace JetSimulation.EnemySystem
 
         private void Start()
         {
+            TrySubscribeGameOver();
+
+            if (IsGameOver())
+            {
+                StopMovement();
+                return;
+            }
+
             if (!isInitialized)
             {
                 Initialize(transform.position, transform.position, transform.forward, 0f, 0f);
@@ -72,6 +82,12 @@ namespace JetSimulation.EnemySystem
 
         private void Update()
         {
+            if (IsGameOver())
+            {
+                StopMovement();
+                return;
+            }
+
             if (!isInitialized)
             {
                 return;
@@ -84,6 +100,16 @@ namespace JetSimulation.EnemySystem
             }
 
             UpdateMovement();
+        }
+
+        private void OnEnable()
+        {
+            TrySubscribeGameOver();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeGameOver();
         }
 
         public void Initialize(Vector3 moveDirection, float moveSpeed, float travelDistance)
@@ -127,6 +153,12 @@ namespace JetSimulation.EnemySystem
             float parabolicEntryDuration,
             float entryArcHeight)
         {
+            if (IsGameOver())
+            {
+                StopMovement();
+                return;
+            }
+
             CacheComponents();
             DisableLegacyMover();
 
@@ -174,6 +206,12 @@ namespace JetSimulation.EnemySystem
         {
             despawnReference = reference;
             despawnBehindReferenceDistance = Mathf.Max(0f, behindDistance);
+        }
+
+        public void StopMovement()
+        {
+            isEntering = false;
+            enabled = false;
         }
 
         private void UpdateEntry()
@@ -327,6 +365,34 @@ namespace JetSimulation.EnemySystem
             }
 
             return transform.position.z <= despawnReference.position.z - despawnBehindReferenceDistance;
+        }
+
+        private void TrySubscribeGameOver()
+        {
+            if (gameOverSubscribed || GameManager.Instance == null)
+            {
+                return;
+            }
+
+            GameManager.Instance.OnGameOver += StopMovement;
+            gameOverSubscribed = true;
+        }
+
+        private void UnsubscribeGameOver()
+        {
+            if (!gameOverSubscribed || GameManager.Instance == null)
+            {
+                gameOverSubscribed = false;
+                return;
+            }
+
+            GameManager.Instance.OnGameOver -= StopMovement;
+            gameOverSubscribed = false;
+        }
+
+        private static bool IsGameOver()
+        {
+            return GameManager.Instance != null && GameManager.Instance.IsGameOver;
         }
 
         private static Vector3 LimitDirectionAngle(Vector3 direction, Vector3 forward, float maxAngle)

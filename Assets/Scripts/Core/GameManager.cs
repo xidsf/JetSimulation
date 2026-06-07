@@ -2,6 +2,7 @@ using UnityEngine;
 using System;
 using System.Collections;
 using JetSimulation.Combat;
+using JetSimulation.EnemySystem;
 using JetSimulation.UI;
 
 namespace JetSimulation.Core
@@ -13,6 +14,8 @@ namespace JetSimulation.Core
         [Header("References")]
         [SerializeField] private PlayerHealth playerHealth;
         [SerializeField] private MissileAttackController playerAttackController;
+        [SerializeField] private PlayerMachineGunController playerMachineGunController;
+        [SerializeField] private PlayerWeaponController legacyPlayerWeaponController;
         [SerializeField] private PlayerJetController playerFlightController;
 
         [Header("Game State")]
@@ -24,18 +27,20 @@ namespace JetSimulation.Core
         [SerializeField] private float scoreTickInterval = 1f;
 
         [Header("Environment Settings")]
-        [Tooltip("Ãß¶ô»ç·Î ÆÇÁ¤µÇ´Â ¹Ù´Ù ¼ö¸é ³ôÀÌ")]
+        [Tooltip("ì¶”ë½ì‚¬ë¡œ íŒì •ë˜ëŠ” ë°”ë‹¤ ìˆ˜ë©´ ë†’ì´")]
         [SerializeField] private float seaLevelY = -1000f;
 
         [Header("VR Transition (Boss Clear)")]
-        [Tooltip("º¸½º Å¬¸®¾î ½Ã ¾ÏÀü ¿¬Ãâ¿¡ »ç¿ëÇÒ FadeSphereÀÇ Renderer¸¦ ¿¬°áÇØÁÖ¼¼¿ä.")]
+        [Tooltip("ë³´ìŠ¤ í´ë¦¬ì–´ ì‹œ ì•”ì „ ì—°ì¶œì— ì‚¬ìš©í•  FadeSphereì˜ Rendererë¥¼ ì—°ê²°í•´ì£¼ì„¸ìš”.")]
         [SerializeField] private Renderer fadeRenderer;
-        [Tooltip("¾ÏÀü¿¡ °É¸®´Â ½Ã°£ (»ç¸Á ¿¬Ãâ°ú µ¿ÀÏÇÏ°Ô ¸ÂÃß´Â °ÍÀ» ÃßÃµÇÕ´Ï´Ù)")]
+        [Tooltip("ì•”ì „ì— ê±¸ë¦¬ëŠ” ì‹œê°„ (ì‚¬ë§ ì—°ì¶œê³¼ ë™ì¼í•˜ê²Œ ë§ì¶”ëŠ” ê²ƒì„ ì¶”ì²œí•©ë‹ˆë‹¤)")]
         [SerializeField] private float fadeDuration = 2f;
 
         public event Action<int> OnScoreChanged;
+        public event Action OnGameOver;
 
         public int CurrentScore => currentScore;
+        public bool IsGameOver { get; private set; }
 
         private void Awake()
         {
@@ -61,6 +66,7 @@ namespace JetSimulation.Core
         public void StartGame()
         {
             currentScore = 0;
+            IsGameOver = false;
             isScoreActive = true;
             OnScoreChanged?.Invoke(currentScore);
             StartCoroutine(SurvivalScoreRoutine());
@@ -94,22 +100,52 @@ namespace JetSimulation.Core
 
         private void HandleGameOver()
         {
-            Debug.Log("°ÔÀÓ ¿À¹ö! ¸ğµç Á¶ÀÛ ¹× Á¡¼ö ±â·ÏÀ» Â÷´ÜÇÕ´Ï´Ù.");
+            if (IsGameOver)
+            {
+                return;
+            }
 
+            Debug.Log("ê²Œì„ ì˜¤ë²„! ëª¨ë“  ì¡°ì‘ ë° ì ìˆ˜ ê¸°ë¡ì„ ì°¨ë‹¨í•©ë‹ˆë‹¤.");
+
+            IsGameOver = true;
             isScoreActive = false;
             StopAllCoroutines();
+            OnGameOver?.Invoke();
 
             if (playerAttackController != null)
             {
                 playerAttackController.SetAttackEnabled(false);
+                playerAttackController.enabled = false;
+            }
+
+            if (playerMachineGunController == null)
+            {
+                playerMachineGunController = FindObjectOfType<PlayerMachineGunController>();
+            }
+
+            if (playerMachineGunController != null)
+            {
+                playerMachineGunController.SetMachineGunEnabled(false);
+                playerMachineGunController.enabled = false;
+            }
+
+            if (legacyPlayerWeaponController == null)
+            {
+                legacyPlayerWeaponController = FindObjectOfType<PlayerWeaponController>();
+            }
+
+            if (legacyPlayerWeaponController != null)
+            {
+                legacyPlayerWeaponController.SetWeaponEnabled(false);
+                legacyPlayerWeaponController.enabled = false;
             }
 
             if (playerFlightController != null)
             {
-                // 1. °ü¼º ¿ÏÀü Â÷´Ü (±âÃ¼ ¹°¸® Á¤Áö)
+                // 1. ê´€ì„± ì™„ì „ ì°¨ë‹¨ (ê¸°ì²´ ë¬¼ë¦¬ ì •ì§€)
                 playerFlightController.HaltFlight();
 
-                // 2. ¹Ù´Ù ¹Ø¿¡ Ã³¹ÚÇû´Ù¸é Áï½Ã ¼ö¸é À§ ¾ÈÀüÇÑ °íµµ·Î ²ø¾î¿Ã¸² (UI Å¬¸®ÇÎ ¿øÃµ Â÷´Ü)
+                // 2. ë°”ë‹¤ ë°‘ì— ì²˜ë°•í˜”ë‹¤ë©´ ì¦‰ì‹œ ìˆ˜ë©´ ìœ„ ì•ˆì „í•œ ê³ ë„ë¡œ ëŒì–´ì˜¬ë¦¼ (UI í´ë¦¬í•‘ ì›ì²œ ì°¨ë‹¨)
                 if (playerFlightController.transform.position.y <= seaLevelY + 5f)
                 {
                     Vector3 pos = playerFlightController.transform.position;
@@ -117,15 +153,57 @@ namespace JetSimulation.Core
                 }
             }
 
-            // ÇÃ·¹ÀÌ¾î »ç¸Á ½Ã UI È£ÃâÀº ±âÁ¸Ã³·³ ¿ÜºÎ(CameraEffectManager µî) ¿¬Ãâ ·ÎÁ÷¿¡ ¸Ã±é´Ï´Ù.
+            StopEnemySystems();
+
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.ShowPanel(UIPanelType.GameOver);
+            }
+            else
+            {
+                Debug.LogWarning("[GameManager] UIManager ì¸ìŠ¤í„´ìŠ¤ê°€ ì—†ì–´ ê²Œì„ ì˜¤ë²„ íŒ¨ë„ì„ ë„ìš¸ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
+            }
+        }
+
+        private void StopEnemySystems()
+        {
+            foreach (var spawner in FindObjectsOfType<EnemySpawner>())
+            {
+                spawner.StopSpawning();
+            }
+
+            foreach (var enemy in FindObjectsOfType<EnemyController>())
+            {
+                enemy.StopMovement();
+            }
+
+            foreach (var mover in FindObjectsOfType<EnemyStraightMover>())
+            {
+                mover.StopMovement();
+            }
+
+            foreach (var boss in FindObjectsOfType<EnemyBossController>())
+            {
+                boss.StopForGameOver();
+            }
+
+            foreach (var missile in FindObjectsOfType<EnemyBossMissile>())
+            {
+                missile.DestroyForGameOver();
+            }
+
+            foreach (var missile in FindObjectsOfType<BossStraightMissile>())
+            {
+                missile.DestroyForGameOver();
+            }
         }
 
         /// <summary>
-        /// º¸½º°¡ ÆÄ±«µÇ¾úÀ» ¶§(Å¬¸®¾î) È£ÃâµÇ´Â ¸Ş¼­µå
+        /// ë³´ìŠ¤ê°€ íŒŒê´´ë˜ì—ˆì„ ë•Œ(í´ë¦¬ì–´) í˜¸ì¶œë˜ëŠ” ë©”ì„œë“œ
         /// </summary>
         public void HandleBossCleared()
         {
-            Debug.Log("º¸½º Å¬¸®¾î! Á¡¼ö ±â·ÏÀ» Â÷´ÜÇÏ°í Á¾·á ¿¬ÃâÀ» ½ÃÀÛÇÕ´Ï´Ù.");
+            Debug.Log("ë³´ìŠ¤ í´ë¦¬ì–´! ì ìˆ˜ ê¸°ë¡ì„ ì°¨ë‹¨í•˜ê³  ì¢…ë£Œ ì—°ì¶œì„ ì‹œì‘í•©ë‹ˆë‹¤.");
 
             isScoreActive = false;
             StopAllCoroutines();
@@ -140,16 +218,16 @@ namespace JetSimulation.Core
 
         private IEnumerator BossClearRoutine()
         {
-            // 1. º¸½º°¡ Æø¹ßÇÏ´Â È­·ÁÇÑ ÀÌÆåÆ®¸¦ °¨»óÇÏ±â À§ÇØ 3ÃÊ°£ ºñÇà À¯Áö
+            // 1. ë³´ìŠ¤ê°€ í­ë°œí•˜ëŠ” í™”ë ¤í•œ ì´í™íŠ¸ë¥¼ ê°ìƒí•˜ê¸° ìœ„í•´ 3ì´ˆê°„ ë¹„í–‰ ìœ ì§€
             yield return new WaitForSeconds(3f);
 
-            // 2. ÇÃ·¹ÀÌ¾î »ç¸Á ½Ã¿Í µ¿ÀÏÇÏ°Ô ±âÃ¼ ¹°¸® °ü¼º ¹× Á¶ÀÛ ¿ÏÀü Â÷´Ü
+            // 2. í”Œë ˆì´ì–´ ì‚¬ë§ ì‹œì™€ ë™ì¼í•˜ê²Œ ê¸°ì²´ ë¬¼ë¦¬ ê´€ì„± ë° ì¡°ì‘ ì™„ì „ ì°¨ë‹¨
             if (playerFlightController != null)
             {
                 playerFlightController.HaltFlight();
             }
 
-            // 3. VR È¯°æ ¸Ö¹Ì ¹æÁö ¹× ¿¬ÃâÀ» À§ÇØ FadeSphere¸¦ ¼­¼­È÷ ¾îµÓ°Ô (¾ÏÀü)
+            // 3. VR í™˜ê²½ ë©€ë¯¸ ë°©ì§€ ë° ì—°ì¶œì„ ìœ„í•´ FadeSphereë¥¼ ì„œì„œíˆ ì–´ë‘¡ê²Œ (ì•”ì „)
             if (fadeRenderer != null)
             {
                 float timer = 0f;
@@ -167,18 +245,18 @@ namespace JetSimulation.Core
             }
             else
             {
-                // ¾ÏÀü ·»´õ·¯°¡ ÇÒ´çµÇÁö ¾Ê¾ÒÀ» °æ¿ì¸¦ ´ëºñÇÑ ´ë±â ½Ã°£
+                // ì•”ì „ ë Œë”ëŸ¬ê°€ í• ë‹¹ë˜ì§€ ì•Šì•˜ì„ ê²½ìš°ë¥¼ ëŒ€ë¹„í•œ ëŒ€ê¸° ì‹œê°„
                 yield return new WaitForSeconds(fadeDuration);
             }
 
-            // 4. ½Ã¾ß°¡ ¿Ïº®È÷ Â÷´ÜµÈ ÈÄ ±ò²ûÇÏ°Ô UIManager¸¦ ÅëÇØ 'ÀÛÀü Á¾·á' È­¸é È£Ãâ
+            // 4. ì‹œì•¼ê°€ ì™„ë²½íˆ ì°¨ë‹¨ëœ í›„ ê¹”ë”í•˜ê²Œ UIManagerë¥¼ í†µí•´ 'ì‘ì „ ì¢…ë£Œ' í™”ë©´ í˜¸ì¶œ
             if (UIManager.Instance != null)
             {
                 UIManager.Instance.ShowPanel(UIPanelType.GameOver);
             }
             else
             {
-                Debug.LogWarning("[GameManager] UIManager ÀÎ½ºÅÏ½º°¡ ¾ø¾î ÆĞ³ÎÀ» ¶ç¿ï ¼ö ¾ø½À´Ï´Ù.");
+                Debug.LogWarning("[GameManager] UIManager ì¸ìŠ¤í„´ìŠ¤ê°€ ì—†ì–´ íŒ¨ë„ì„ ë„ìš¸ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.");
             }
         }
     }

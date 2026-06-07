@@ -12,8 +12,8 @@ namespace JetSimulation.EnemySystem
         [SerializeField] private Transform firePoint;
         [SerializeField] private Camera aimCamera;
 
-        // ¶ô¿Â ¹Ì»çÀÏÀº MissileAttackController°¡ ÈÎ¾À ÈÇ¸¢ÇÏ°Ô Ã³¸®ÇÏ¹Ç·Î,
-        // ÀÌ ½ºÅ©¸³Æ®¿¡¼­´Â ±âÃÑ(Bullet) ¹ß»ç¿¡¸¸ ÁıÁßÇÏµµ·Ï ¹Ì»çÀÏ °ü·Ã ÄÚµå´Â ÁÖ¼® Ã³¸®/»èÁ¦ÇØµµ ¹«¹æÇÕ´Ï´Ù.
+        // ë½ì˜¨ ë¯¸ì‚¬ì¼ì€ MissileAttackControllerê°€ í›¨ì”¬ í›Œë¥­í•˜ê²Œ ì²˜ë¦¬í•˜ë¯€ë¡œ,
+        // ì´ ìŠ¤í¬ë¦½íŠ¸ì—ì„œëŠ” ê¸°ì´(Bullet) ë°œì‚¬ì—ë§Œ ì§‘ì¤‘í•˜ë„ë¡ ë¯¸ì‚¬ì¼ ê´€ë ¨ ì½”ë“œëŠ” ì£¼ì„ ì²˜ë¦¬/ì‚­ì œí•´ë„ ë¬´ë°©í•©ë‹ˆë‹¤.
         // [SerializeField] private GameObject missilePrefab;
 
         [Header("Bullet (Machine Gun)")]
@@ -29,6 +29,7 @@ namespace JetSimulation.EnemySystem
         [SerializeField] private float muzzleUpOffset = 0.3f;
 
         private float nextBulletTime;
+        private bool weaponEnabled = true;
 
         private void Awake()
         {
@@ -38,7 +39,12 @@ namespace JetSimulation.EnemySystem
 
         private void Update()
         {
-            // ¿¬»ç(Machine Gun) ±¸Çö: ÄğÅ¸ÀÓÀÌ Ã¡°í Æ®¸®°Å°¡ ´ç°ÜÁ® ÀÖ´Ù¸é °è¼Ó ¹ß»ç
+            if (!weaponEnabled)
+            {
+                return;
+            }
+
+            // ì—°ì‚¬(Machine Gun) êµ¬í˜„: ì¿¨íƒ€ì„ì´ ì°¼ê³  íŠ¸ë¦¬ê±°ê°€ ë‹¹ê²¨ì ¸ ìˆë‹¤ë©´ ê³„ì† ë°œì‚¬
             if (IsFirePressed() && Time.time >= nextBulletTime)
             {
                 FireBullet();
@@ -58,7 +64,7 @@ namespace JetSimulation.EnemySystem
             var renderer = bullet.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material.color = Color.yellow; // ¿¹±¤Åº ´À³¦ÀÇ ³ë¶õ»ö
+                renderer.material.color = Color.yellow; // ì˜ˆê´‘íƒ„ ëŠë‚Œì˜ ë…¸ë€ìƒ‰
             }
 
             var projectile = bullet.AddComponent<PlayerProjectile>();
@@ -78,17 +84,17 @@ namespace JetSimulation.EnemySystem
         }
 
         /// <summary>
-        /// VR ÄÁÆ®·Ñ·¯ Æ®¸®°Å ÀÔ·Â°ú PC ¸¶¿ì½º ÀÔ·ÂÀ» µ¿½Ã¿¡ Áö¿øÇÏµµ·Ï ¼öÁ¤
+        /// VR ì»¨íŠ¸ë¡¤ëŸ¬ íŠ¸ë¦¬ê±° ì…ë ¥ê³¼ PC ë§ˆìš°ìŠ¤ ì…ë ¥ì„ ë™ì‹œì— ì§€ì›í•˜ë„ë¡ ìˆ˜ì •
         /// </summary>
         private bool IsFirePressed()
         {
-            // 1. VR ¸ğµå: VRInputManagerÀÇ ¿À¸¥¼Õ Æ®¸®°Å ´ç±è Á¤µµ°¡ 0.5 ÀÌ»óÀÏ ¶§ ¹ß»ç
+            // 1. VR ëª¨ë“œ: VRInputManagerì˜ ì˜¤ë¥¸ì† íŠ¸ë¦¬ê±° ë‹¹ê¹€ ì •ë„ê°€ 0.5 ì´ìƒì¼ ë•Œ ë°œì‚¬
             if (VRInputManager.Instance != null && VRInputManager.Instance.TriggerValue >= 0.5f)
             {
                 return true;
             }
 
-            // 2. PC µğ¹ö±× ¸ğµå: ¸¶¿ì½º ÁÂÅ¬¸¯ (¿¬»ç¸¦ À§ÇØ isPressed À¯Áö È®ÀÎ)
+            // 2. PC ë””ë²„ê·¸ ëª¨ë“œ: ë§ˆìš°ìŠ¤ ì¢Œí´ë¦­ (ì—°ì‚¬ë¥¼ ìœ„í•´ isPressed ìœ ì§€ í™•ì¸)
 #if ENABLE_INPUT_SYSTEM
             if (Mouse.current != null)
             {
@@ -96,6 +102,11 @@ namespace JetSimulation.EnemySystem
             }
 #endif
             return false;
+        }
+
+        public void SetWeaponEnabled(bool enabled)
+        {
+            weaponEnabled = enabled;
         }
     }
 }

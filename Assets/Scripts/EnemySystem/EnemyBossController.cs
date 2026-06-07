@@ -36,6 +36,7 @@ namespace JetSimulation.EnemySystem
         private bool isEntering;
         private bool isEnded;
         private bool hasPlayerTrackingPosition;
+        private bool gameOverSubscribed;
 
         private void Awake()
         {
@@ -57,6 +58,8 @@ namespace JetSimulation.EnemySystem
             {
                 health.destroyed.AddListener(HandleBossDestroyed);
             }
+
+            TrySubscribeGameOver();
         }
 
         private void OnDisable()
@@ -65,10 +68,20 @@ namespace JetSimulation.EnemySystem
             {
                 health.destroyed.RemoveListener(HandleBossDestroyed);
             }
+
+            UnsubscribeGameOver();
         }
 
         private void Update()
         {
+            TrySubscribeGameOver();
+
+            if (IsGameOver())
+            {
+                StopForGameOver();
+                return;
+            }
+
             ResolvePlayer();
             if (isEnded)
             {
@@ -95,6 +108,12 @@ namespace JetSimulation.EnemySystem
 
         public void Initialize(Transform targetPlayer, Vector3 spawnPosition, Vector3 forwardDirection)
         {
+            if (IsGameOver())
+            {
+                StopForGameOver();
+                return;
+            }
+
             player = targetPlayer;
             ResetPlayerVelocityTracking();
             ResolvePlayer();
@@ -166,7 +185,7 @@ namespace JetSimulation.EnemySystem
 
         private void UpdateMissileAttack()
         {
-            if (!enableMissileAttack)
+            if (!enableMissileAttack || IsGameOver())
             {
                 return;
             }
@@ -294,11 +313,18 @@ namespace JetSimulation.EnemySystem
             isEnded = true;
             Debug.Log("[EnemySystem] Boss destroyed. Game clear.");
 
-            // GameManagerø°∞‘ ∫∏Ω∫∞° ¡◊æ˙¿Ω¿ª æÀ∏≤
+            // GameManagerÏóêÍ≤å Î≥¥Ïä§Í∞Ä Ï£ΩÏóàÏùåÏùÑ ÏïåÎ¶º
             if (GameManager.Instance != null)
             {
                 GameManager.Instance.HandleBossCleared();
             }
+        }
+
+        public void StopForGameOver()
+        {
+            isEnded = true;
+            enableMissileAttack = false;
+            enabled = false;
         }
 
         private void ResolvePlayer()
@@ -328,6 +354,34 @@ namespace JetSimulation.EnemySystem
         {
             hasPlayerTrackingPosition = false;
             estimatedPlayerVelocity = Vector3.zero;
+        }
+
+        private void TrySubscribeGameOver()
+        {
+            if (gameOverSubscribed || GameManager.Instance == null)
+            {
+                return;
+            }
+
+            GameManager.Instance.OnGameOver += StopForGameOver;
+            gameOverSubscribed = true;
+        }
+
+        private void UnsubscribeGameOver()
+        {
+            if (!gameOverSubscribed || GameManager.Instance == null)
+            {
+                gameOverSubscribed = false;
+                return;
+            }
+
+            GameManager.Instance.OnGameOver -= StopForGameOver;
+            gameOverSubscribed = false;
+        }
+
+        private static bool IsGameOver()
+        {
+            return GameManager.Instance != null && GameManager.Instance.IsGameOver;
         }
 
         private static Vector3 NormalizeDirection(Vector3 direction)

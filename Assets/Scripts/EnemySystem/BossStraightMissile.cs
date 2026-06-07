@@ -28,6 +28,7 @@ namespace JetSimulation.EnemySystem
         private float destroyTime;
         private bool isLaunched;
         private bool hasHitPlayer;
+        private bool gameOverSubscribed;
 
         private static readonly FieldInfo CurrentHealthField =
             typeof(PlayerHealth).GetField("currentHealth", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -40,6 +41,16 @@ namespace JetSimulation.EnemySystem
             projectileRigidbody = GetComponent<Rigidbody>();
             projectileRigidbody.useGravity = false;
             projectileRigidbody.isKinematic = true;
+        }
+
+        private void OnEnable()
+        {
+            TrySubscribeGameOver();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeGameOver();
         }
 
         public void Initialize(Vector3 targetPosition, float launchSpeed, float missileDamage, float missileLifetime)
@@ -87,6 +98,14 @@ namespace JetSimulation.EnemySystem
 
         private void FixedUpdate()
         {
+            TrySubscribeGameOver();
+
+            if (IsGameOver())
+            {
+                DestroyForGameOver();
+                return;
+            }
+
             if (!isLaunched)
             {
                 return;
@@ -204,6 +223,39 @@ namespace JetSimulation.EnemySystem
             }
 
             Destroy(gameObject);
+        }
+
+        public void DestroyForGameOver()
+        {
+            DestroyMissile(false);
+        }
+
+        private void TrySubscribeGameOver()
+        {
+            if (gameOverSubscribed || GameManager.Instance == null)
+            {
+                return;
+            }
+
+            GameManager.Instance.OnGameOver += DestroyForGameOver;
+            gameOverSubscribed = true;
+        }
+
+        private void UnsubscribeGameOver()
+        {
+            if (!gameOverSubscribed || GameManager.Instance == null)
+            {
+                gameOverSubscribed = false;
+                return;
+            }
+
+            GameManager.Instance.OnGameOver -= DestroyForGameOver;
+            gameOverSubscribed = false;
+        }
+
+        private static bool IsGameOver()
+        {
+            return GameManager.Instance != null && GameManager.Instance.IsGameOver;
         }
 
         private static Vector3 GetSafeUp(Vector3 forward)

@@ -1,3 +1,4 @@
+using JetSimulation.Core;
 using UnityEngine;
 
 namespace JetSimulation.EnemySystem
@@ -19,17 +20,42 @@ namespace JetSimulation.EnemySystem
         private float descentSpeed;
         private bool isDescending;
         private float maxTravelDistanceSqr;
+        private bool gameOverSubscribed;
 
         private void Start()
         {
+            TrySubscribeGameOver();
+
+            if (IsGameOver())
+            {
+                StopMovement();
+                return;
+            }
+
             if (!initialized)
             {
                 Initialize(transform.forward, speed, maxTravelDistance);
             }
         }
 
+        private void OnEnable()
+        {
+            TrySubscribeGameOver();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeGameOver();
+        }
+
         private void Update()
         {
+            if (IsGameOver())
+            {
+                StopMovement();
+                return;
+            }
+
             if (isDescending)
             {
                 var nextHeight = Mathf.MoveTowards(transform.position.y, flightHeight, descentSpeed * Time.deltaTime);
@@ -77,6 +103,12 @@ namespace JetSimulation.EnemySystem
             bool shouldDescendBeforeForward,
             float descendSpeed)
         {
+            if (IsGameOver())
+            {
+                StopMovement();
+                return;
+            }
+
             moveDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector3.back;
             speed = Mathf.Max(0f, moveSpeed);
             maxTravelDistance = travelDistance;
@@ -99,6 +131,40 @@ namespace JetSimulation.EnemySystem
             {
                 transform.rotation = Quaternion.LookRotation(moveDirection, Vector3.up) * Quaternion.Euler(modelRotationOffset);
             }
+        }
+
+        public void StopMovement()
+        {
+            isDescending = false;
+            enabled = false;
+        }
+
+        private void TrySubscribeGameOver()
+        {
+            if (gameOverSubscribed || GameManager.Instance == null)
+            {
+                return;
+            }
+
+            GameManager.Instance.OnGameOver += StopMovement;
+            gameOverSubscribed = true;
+        }
+
+        private void UnsubscribeGameOver()
+        {
+            if (!gameOverSubscribed || GameManager.Instance == null)
+            {
+                gameOverSubscribed = false;
+                return;
+            }
+
+            GameManager.Instance.OnGameOver -= StopMovement;
+            gameOverSubscribed = false;
+        }
+
+        private static bool IsGameOver()
+        {
+            return GameManager.Instance != null && GameManager.Instance.IsGameOver;
         }
     }
 }

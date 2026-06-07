@@ -10,6 +10,17 @@ namespace JetSimulation.EnemySystem
         private float speed;
         private float damage;
         private float deathTime;
+        private bool gameOverSubscribed;
+
+        private void OnEnable()
+        {
+            TrySubscribeGameOver();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeGameOver();
+        }
 
         public void Initialize(Vector3 moveDirection, float moveSpeed, float missileDamage, float lifetime)
         {
@@ -21,6 +32,14 @@ namespace JetSimulation.EnemySystem
 
         private void Update()
         {
+            TrySubscribeGameOver();
+
+            if (IsGameOver())
+            {
+                DestroyForGameOver();
+                return;
+            }
+
             transform.position += direction * speed * Time.deltaTime;
 
             if (Time.time >= deathTime)
@@ -50,6 +69,39 @@ namespace JetSimulation.EnemySystem
             playerHealth.TakeDamage(damage, gameObject);
             Debug.Log($"[EnemySystem] Boss missile hit player. Damage: {damage}");
             Destroy(gameObject);
+        }
+
+        public void DestroyForGameOver()
+        {
+            Destroy(gameObject);
+        }
+
+        private void TrySubscribeGameOver()
+        {
+            if (gameOverSubscribed || GameManager.Instance == null)
+            {
+                return;
+            }
+
+            GameManager.Instance.OnGameOver += DestroyForGameOver;
+            gameOverSubscribed = true;
+        }
+
+        private void UnsubscribeGameOver()
+        {
+            if (!gameOverSubscribed || GameManager.Instance == null)
+            {
+                gameOverSubscribed = false;
+                return;
+            }
+
+            GameManager.Instance.OnGameOver -= DestroyForGameOver;
+            gameOverSubscribed = false;
+        }
+
+        private static bool IsGameOver()
+        {
+            return GameManager.Instance != null && GameManager.Instance.IsGameOver;
         }
     }
 }

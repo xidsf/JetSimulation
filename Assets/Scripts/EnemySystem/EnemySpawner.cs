@@ -71,6 +71,7 @@ namespace JetSimulation.EnemySystem
         private bool bossSpawnRequested;
         private bool bossSpawned;
         private bool missingBossPrefabLogged;
+        private bool gameOverSubscribed;
         private Quaternion fixedRotation;
         private static EnemyBossController activeBoss;
 
@@ -80,8 +81,31 @@ namespace JetSimulation.EnemySystem
             ResolveReferences();
         }
 
+        private void OnEnable()
+        {
+            TrySubscribeGameOver();
+        }
+
+        private void Start()
+        {
+            TrySubscribeGameOver();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeGameOver();
+        }
+
         private void Update()
         {
+            TrySubscribeGameOver();
+
+            if (IsGameOver())
+            {
+                StopSpawning();
+                return;
+            }
+
             if (player == null || playerCamera == null)
             {
                 ResolveReferences();
@@ -257,8 +281,18 @@ namespace JetSimulation.EnemySystem
             startActive = active;
         }
 
+        public void StopSpawning()
+        {
+            startActive = false;
+        }
+
         public void SpawnWave()
         {
+            if (IsGameOver())
+            {
+                return;
+            }
+
             if (bossSpawnRequested || bossSpawned)
             {
                 return;
@@ -296,6 +330,11 @@ namespace JetSimulation.EnemySystem
 
         private void SpawnEnemy(int index, int count)
         {
+            if (IsGameOver())
+            {
+                return;
+            }
+
             var prefab = ChooseEnemyPrefab();
             if (prefab == null)
             {
@@ -596,6 +635,34 @@ namespace JetSimulation.EnemySystem
             {
                 player = playerCamera.transform;
             }
+        }
+
+        private void TrySubscribeGameOver()
+        {
+            if (gameOverSubscribed || GameManager.Instance == null)
+            {
+                return;
+            }
+
+            GameManager.Instance.OnGameOver += StopSpawning;
+            gameOverSubscribed = true;
+        }
+
+        private void UnsubscribeGameOver()
+        {
+            if (!gameOverSubscribed || GameManager.Instance == null)
+            {
+                gameOverSubscribed = false;
+                return;
+            }
+
+            GameManager.Instance.OnGameOver -= StopSpawning;
+            gameOverSubscribed = false;
+        }
+
+        private static bool IsGameOver()
+        {
+            return GameManager.Instance != null && GameManager.Instance.IsGameOver;
         }
 
         private void OnDrawGizmosSelected()

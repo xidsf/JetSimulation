@@ -1,6 +1,7 @@
 using UnityEngine;
 using System;
-using JetSimulation.Combat; // ÆÀ¿øÀÇ Combat ÀÎÅÍÆäÀÌ½º ÂüÁ¶¸¦ À§ÇØ Ãß°¡
+using JetSimulation.Combat; // íŒ€ì›ì˜ Combat ì¸í„°í˜ì´ìŠ¤ ì°¸ì¡°ë¥¼ ìœ„í•´ ì¶”ê°€
+using JetSimulation.EnemySystem;
 
 namespace JetSimulation.Core
 {
@@ -12,10 +13,20 @@ namespace JetSimulation.Core
 
         public bool IsDead { get; private set; }
 
-        // ±âÁ¸ ÄÚ¾î ¾ÆÅ°ÅØÃ³ÀÇ ÇÙ½É ÀÌº¥Æ® Actionµé
-        public event Action<float> OnHealthChanged; // Ã¼·Â ºñÀ² (0 ~ 1) Àü´Ş¿ë
+        // ê¸°ì¡´ ì½”ì–´ ì•„í‚¤í…ì²˜ì˜ í•µì‹¬ ì´ë²¤íŠ¸ Actionë“¤
+        public event Action<float> OnHealthChanged; // ì²´ë ¥ ë¹„ìœ¨ (0 ~ 1) ì „ë‹¬ìš©
         public event Action OnTookDamage;
         public event Action OnPlayerDied;
+
+        private void OnTriggerEnter(Collider other)
+        {
+            TryHandleEnemyCollision(other.gameObject);
+        }
+
+        private void OnCollisionEnter(Collision collision)
+        {
+            TryHandleEnemyCollision(collision.gameObject);
+        }
 
         private void Awake()
         {
@@ -24,13 +35,13 @@ namespace JetSimulation.Core
         }
 
         /// <summary>
-        /// ¹Ì»çÀÏ Æø¹ß/Ãæµ¹ ½ºÅ©¸³Æ®°¡ ÇÃ·¹ÀÌ¾î¸¦ ¸ÂÃèÀ» ¶§ È£ÃâÇÏ°Ô µÉ ÀÎÅÍÆäÀÌ½º ¸Ş¼­µå
+        /// ë¯¸ì‚¬ì¼ í­ë°œ/ì¶©ëŒ ìŠ¤í¬ë¦½íŠ¸ê°€ í”Œë ˆì´ì–´ë¥¼ ë§ì·„ì„ ë•Œ í˜¸ì¶œí•˜ê²Œ ë  ì¸í„°í˜ì´ìŠ¤ ë©”ì„œë“œ
         /// </summary>
         public void TakeDamage(float amount, GameObject source)
         {
             if (IsDead || amount <= 0f) return;
 
-            // ÇÙ½É ¼öÁ¤: ¿À¹öÅ³(9999 ´ë¹ÌÁö)ÀÌ µé¾î¿Íµµ ³» ÇöÀç Ã¼·Â ÀÌ»óÀ¸·Î´Â Æä³ÎÆ¼¸¦ ¹ŞÁö ¾ÊÀ½
+            // í•µì‹¬ ìˆ˜ì •: ì˜¤ë²„í‚¬(9999 ëŒ€ë¯¸ì§€)ì´ ë“¤ì–´ì™€ë„ ë‚´ í˜„ì¬ ì²´ë ¥ ì´ìƒìœ¼ë¡œëŠ” í˜ë„í‹°ë¥¼ ë°›ì§€ ì•ŠìŒ
             float actualDamage = Mathf.Min(amount, currentHealth);
 
             currentHealth -= amount;
@@ -41,11 +52,11 @@ namespace JetSimulation.Core
 
             if (GameManager.Instance != null)
             {
-                // ½ÇÁ¦ ±ğÀÎ Ã¼·Â ºñ·Ê·Î¸¸ Á¡¼ö Â÷°¨ (Áï»çÇØµµ ÃÖ´ë 200Á¡¸¸ ±ğÀÓ)
+                // ì‹¤ì œ ê¹ì¸ ì²´ë ¥ ë¹„ë¡€ë¡œë§Œ ì ìˆ˜ ì°¨ê° (ì¦‰ì‚¬í•´ë„ ìµœëŒ€ 200ì ë§Œ ê¹ì„)
                 GameManager.Instance.DeductScoreForDamage(Mathf.RoundToInt(actualDamage * 2));
             }
 
-            Debug.Log($"[Player] ÇÇ°İ! ´ë¹ÌÁö: {amount} | ³²Àº Ã¼·Â: {currentHealth}");
+            Debug.Log($"[Player] í”¼ê²©! ëŒ€ë¯¸ì§€: {amount} | ë‚¨ì€ ì²´ë ¥: {currentHealth}");
 
             if (currentHealth <= 0f)
             {
@@ -53,14 +64,44 @@ namespace JetSimulation.Core
             }
         }
 
+        public void KillInstantly(GameObject source)
+        {
+            if (IsDead)
+            {
+                return;
+            }
+
+            currentHealth = 0f;
+            OnHealthChanged?.Invoke(0f);
+            Debug.Log($"[Player] ì¦‰ì‚¬ ì¶©ëŒ ë°œìƒ: {(source != null ? source.name : "Unknown")}");
+            Die();
+        }
+
+        private void TryHandleEnemyCollision(GameObject hitObject)
+        {
+            if (IsDead || hitObject == null)
+            {
+                return;
+            }
+
+            if (hitObject.GetComponentInParent<EnemyHealth>() == null &&
+                hitObject.GetComponentInParent<EnemyController>() == null &&
+                hitObject.GetComponentInParent<EnemyBossController>() == null)
+            {
+                return;
+            }
+
+            KillInstantly(hitObject);
+        }
+
         private void Die()
         {
             IsDead = true;
 
-            // 4. GameManager¿Í CameraEffectManager°¡ ¼ö½ÅÇÏ¿© ¾ÏÀü ¹× Á¶ÀÛÀ» ²÷´Â »ç¸Á ÀÌº¥Æ® ¹ß»ı
+            // 4. GameManagerì™€ CameraEffectManagerê°€ ìˆ˜ì‹ í•˜ì—¬ ì•”ì „ ë° ì¡°ì‘ì„ ëŠëŠ” ì‚¬ë§ ì´ë²¤íŠ¸ ë°œìƒ
             OnPlayerDied?.Invoke();
 
-            Debug.Log("[Player] »ç¸Á »óÅÂ¿¡ ÁøÀÔÇÏ¿© ½Ã³×¸¶Æ½ ¿¬ÃâÀ» ½ÃÀÛÇÕ´Ï´Ù.");
+            Debug.Log("[Player] ì‚¬ë§ ìƒíƒœì— ì§„ì…í•˜ì—¬ ì‹œë„¤ë§ˆí‹± ì—°ì¶œì„ ì‹œì‘í•©ë‹ˆë‹¤.");
         }
     }
 }

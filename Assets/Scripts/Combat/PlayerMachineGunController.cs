@@ -108,6 +108,20 @@ namespace JetSimulation.Combat
 
         public Vector2 CrosshairViewportPosition => crosshairViewportPosition;
 
+        public void SetMachineGunEnabled(bool enabled)
+        {
+            machineGunEnabled = enabled;
+
+            if (!machineGunEnabled)
+            {
+                if (crosshairUI != null)
+                    crosshairUI.Hide();
+
+                if (hitscanSmokeEffectInstance != null)
+                    hitscanSmokeEffectInstance.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            }
+        }
+
         void Awake()
         {
             ResolveReferences();

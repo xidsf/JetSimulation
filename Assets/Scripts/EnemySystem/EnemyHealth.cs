@@ -29,6 +29,7 @@ namespace JetSimulation.EnemySystem
 
         private float currentHealth;
         private bool isDestroyed;
+        private bool gameOverSubscribed;
 
         public float MaxHealth => maxHealth;
         public float CurrentHealth => currentHealth;
@@ -41,17 +42,25 @@ namespace JetSimulation.EnemySystem
             ResetHealth();
         }
 
+        private void Start()
+        {
+            TrySubscribeGameOver();
+        }
+
         private void OnEnable()
         {
             if (!ActiveEnemies.Contains(this))
             {
                 ActiveEnemies.Add(this);
             }
+
+            TrySubscribeGameOver();
         }
 
         private void OnDisable()
         {
             ActiveEnemies.Remove(this);
+            UnsubscribeGameOver();
         }
 
         public void ResetHealth()
@@ -176,6 +185,34 @@ namespace JetSimulation.EnemySystem
             }
 
             Debug.Log($"[EnemySystem] Enemy destroyed. Score: {previousScore} -> {currentScore}");
+        }
+
+        private void HandleGameOver()
+        {
+            StopAllCoroutines();
+        }
+
+        private void TrySubscribeGameOver()
+        {
+            if (gameOverSubscribed || GameManager.Instance == null)
+            {
+                return;
+            }
+
+            GameManager.Instance.OnGameOver += HandleGameOver;
+            gameOverSubscribed = true;
+        }
+
+        private void UnsubscribeGameOver()
+        {
+            if (!gameOverSubscribed || GameManager.Instance == null)
+            {
+                gameOverSubscribed = false;
+                return;
+            }
+
+            GameManager.Instance.OnGameOver -= HandleGameOver;
+            gameOverSubscribed = false;
         }
     }
 }
