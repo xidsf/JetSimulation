@@ -27,6 +27,12 @@ namespace JetSimulation.Core
         [Tooltip("추락사로 판정되는 바다 수면 높이")]
         [SerializeField] private float seaLevelY = -1000f;
 
+        [Header("VR Transition (Boss Clear)")]
+        [Tooltip("보스 클리어 시 암전 연출에 사용할 FadeSphere의 Renderer를 연결해주세요.")]
+        [SerializeField] private Renderer fadeRenderer;
+        [Tooltip("암전에 걸리는 시간 (사망 연출과 동일하게 맞추는 것을 추천합니다)")]
+        [SerializeField] private float fadeDuration = 2f;
+
         public event Action<int> OnScoreChanged;
 
         public int CurrentScore => currentScore;
@@ -111,7 +117,7 @@ namespace JetSimulation.Core
                 }
             }
 
-            // UI 호출은 기존처럼 CameraEffectManager의 연출 로직에 맡깁니다.
+            // 플레이어 사망 시 UI 호출은 기존처럼 외부(CameraEffectManager 등) 연출 로직에 맡깁니다.
         }
 
         /// <summary>
@@ -119,12 +125,11 @@ namespace JetSimulation.Core
         /// </summary>
         public void HandleBossCleared()
         {
-            Debug.Log("보스 클리어! 점수 기록을 차단하고 종료 UI를 호출합니다.");
+            Debug.Log("보스 클리어! 점수 기록을 차단하고 종료 연출을 시작합니다.");
 
             isScoreActive = false;
             StopAllCoroutines();
 
-            // 클리어 후 추가 발사 차단 (비행 컨트롤은 여운을 위해 남겨둠)
             if (playerAttackController != null)
             {
                 playerAttackController.SetAttackEnabled(false);
@@ -135,17 +140,45 @@ namespace JetSimulation.Core
 
         private IEnumerator BossClearRoutine()
         {
-            // 보스가 터지는 화려한 이펙트와 함께 여유롭게 비행하는 느낌을 주도록 3초간 대기
+            // 1. 보스가 폭발하는 화려한 이펙트를 감상하기 위해 3초간 비행 유지
             yield return new WaitForSeconds(3f);
 
-            // UIManager의 O(1) 스위칭 시스템을 활용해 깔끔하게 GameOver 패널 호출
+            // 2. 플레이어 사망 시와 동일하게 기체 물리 관성 및 조작 완전 차단
+            if (playerFlightController != null)
+            {
+                playerFlightController.HaltFlight();
+            }
+
+            // 3. VR 환경 멀미 방지 및 연출을 위해 FadeSphere를 서서히 어둡게 (암전)
+            if (fadeRenderer != null)
+            {
+                float timer = 0f;
+                Color fadeColor = fadeRenderer.material.color;
+
+                while (timer < fadeDuration)
+                {
+                    timer += Time.deltaTime;
+                    fadeColor.a = Mathf.Lerp(0f, 1f, timer / fadeDuration);
+                    fadeRenderer.material.color = fadeColor;
+                    yield return null;
+                }
+                fadeColor.a = 1f;
+                fadeRenderer.material.color = fadeColor;
+            }
+            else
+            {
+                // 암전 렌더러가 할당되지 않았을 경우를 대비한 대기 시간
+                yield return new WaitForSeconds(fadeDuration);
+            }
+
+            // 4. 시야가 완벽히 차단된 후 깔끔하게 UIManager를 통해 '작전 종료' 화면 호출
             if (UIManager.Instance != null)
             {
                 UIManager.Instance.ShowPanel(UIPanelType.GameOver);
             }
             else
             {
-                Debug.LogWarning("[GameManager] UIManager 인스턴스가 존재하지 않아 UI를 띄울 수 없습니다.");
+                Debug.LogWarning("[GameManager] UIManager 인스턴스가 없어 패널을 띄울 수 없습니다.");
             }
         }
     }

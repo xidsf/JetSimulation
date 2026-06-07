@@ -908,6 +908,8 @@ MonoBehaviour:
   scorePerSecond: 10
   scoreTickInterval: 1
   seaLevelY: -1000
+  fadeRenderer: {fileID: 646500973}
+  fadeDuration: 2
 --- !u!4 &1058688092
 Transform:
   m_ObjectHideFlags: 0
@@ -1395,7 +1397,7 @@ Light:
   m_BounceIntensity: 1
   m_ColorTemperature: 6570
   m_UseColorTemperature: 0
-  m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: -2.7798376e-38}
+  m_BoundingSphereOverride: {x: 1.02e-43, y: 7e-45, z: 2.0125e-41, w: -2.674709e-39}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ShadowRadius: 0
