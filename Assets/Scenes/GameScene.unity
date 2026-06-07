@@ -838,7 +838,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ee6ea409e5fa5ec438518392385602d7, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  indicatorText: {fileID: 0}
+  indicatorText: {fileID: 1406098089}
   tacticalDataText: {fileID: 325604460}
   playerTransform: {fileID: 320801090479701583}
   targetPosition: {x: 0, y: 0, z: 0}
@@ -1395,7 +1395,7 @@ Light:
   m_BounceIntensity: 1
   m_ColorTemperature: 6570
   m_UseColorTemperature: 0
-  m_BoundingSphereOverride: {x: 1.02e-43, y: 1.1e-44, z: 1.46e-42, w: 2.0479316e-38}
+  m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: -2.7798376e-38}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ShadowRadius: 0
@@ -1571,6 +1571,8 @@ MonoBehaviour:
   vrRotationSpeedScale: 0.45
   autoCalibrateRightControllerNeutral: 1
   allowSimulatedXRControllers: 1
+  vrControllerRotationAction: {fileID: 5101698808175986029, guid: c348712bda248c246b8c49b3db54643f, type: 3}
+  vrControllerTriggerAction: {fileID: 7904272356298805229, guid: c348712bda248c246b8c49b3db54643f, type: 3}
   vrPitchInputAxis: 0
   vrRollInputAxis: 1
   invertVRPitchInput: 1
